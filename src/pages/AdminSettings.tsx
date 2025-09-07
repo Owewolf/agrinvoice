@@ -139,6 +139,28 @@ export default function AdminSettings({ onNavigate }: AdminSettingsProps) {
                     />
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="website">Website</Label>
+                    <Input
+                      id="website"
+                      type="url"
+                      value={settings?.branding?.website || ''}
+                      onChange={(e) => {
+                        if (settings) {
+                          setSettings({
+                            ...settings,
+                            branding: {
+                              ...settings.branding,
+                              website: e.target.value
+                            }
+                          });
+                        }
+                      }}
+                      placeholder="https://www.yourcompany.com"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div className="space-y-2">
                     <Label htmlFor="currency">Currency</Label>
                     <Select value={settings?.currency} onValueChange={(value) => updateSettings('currency', value)}>
                       <SelectTrigger>

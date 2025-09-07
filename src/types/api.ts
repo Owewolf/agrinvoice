@@ -153,6 +153,7 @@ export interface Settings {
     language: string;
     branding: {
         companyName: string;
+        website?: string;
         contactInfo: {
             email: string;
             phone: string;

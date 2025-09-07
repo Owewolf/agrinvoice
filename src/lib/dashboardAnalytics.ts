@@ -64,6 +64,7 @@ class DashboardAnalyticsService {
         language: 'en',
         branding: {
           companyName: 'AgriHover',
+          website: 'https://www.agrihover.com',
           contactInfo: {
             email: '',
             phone: '',

@@ -205,7 +205,7 @@ COMMENT ON COLUMN quote_items.flow_rate IS 'Flow rate in L/min or gal/min for sp
 COMMENT ON COLUMN quote_items.spray_width IS 'Spray width in meters or feet';
 COMMENT ON COLUMN quote_items.app_rate IS 'Calculated application rate in L/ha or gal/acre';
 COMMENT ON COLUMN quote_items.calculation IS 'JSON: {rate, subtotal, discount, finalTotal, appliedTier}';
-COMMENT ON COLUMN settings.branding IS 'JSON: {companyName, contactInfo: {email, phone, address}}';
+COMMENT ON COLUMN settings.branding IS 'JSON: {companyName, website, contactInfo: {email, phone, address}}';
 COMMENT ON COLUMN settings.payments IS 'JSON: {bankName, accountName, accountNumber, branchCode}';
 COMMENT ON COLUMN invoices.banking IS 'JSON: banking details copied from settings at invoice creation';
 
@@ -219,7 +219,7 @@ COMMENT ON COLUMN invoices.banking IS 'JSON: banking details copied from setting
 -- Default application settings
 INSERT INTO settings (currency, language, branding, payments) VALUES 
 ('ZAR', 'en', 
- '{"companyName": "AgriHover Drone Services", "contactInfo": {"email": "info@agrihover.com", "phone": "+27 11 123 4567", "address": "123 Agriculture Street, Johannesburg, 2000"}}',
+ '{"companyName": "AgriHover Drone Services", "website": "https://www.agrihover.com", "contactInfo": {"email": "info@agrihover.com", "phone": "+27 11 123 4567", "address": "123 Agriculture Street, Johannesburg, 2000"}}',
  '{"bankName": "First National Bank", "accountName": "AgriHover Drone Services", "accountNumber": "12345678901", "branchCode": "250655"}'
 ) ON CONFLICT DO NOTHING;
 

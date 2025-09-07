@@ -127,7 +127,8 @@ If you have any questions, please don't hesitate to contact us.
 Best regards,
 ${settings.branding?.companyName || 'Your Company'}
 ${settings.branding?.contactInfo?.email || ''}
-${settings.branding?.contactInfo?.phone || ''}`;
+${settings.branding?.contactInfo?.phone || ''}
+${settings.branding?.website ? `Website: ${settings.branding.website}` : ''}`;
 
     const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.open(mailtoLink);
@@ -180,6 +181,7 @@ ${settings.branding?.contactInfo?.phone || ''}`;
                 ${settings.branding?.contactInfo?.address ? `<div>${settings.branding.contactInfo.address}</div>` : ''}
                 ${settings.branding?.contactInfo?.phone ? `<div>Phone: ${settings.branding.contactInfo.phone}</div>` : ''}
                 ${settings.branding?.contactInfo?.email ? `<div>Email: ${settings.branding.contactInfo.email}</div>` : ''}
+                ${settings.branding?.website ? `<div>Website: ${settings.branding.website}</div>` : ''}
               </div>
             </div>
             <div class="quote-info">
