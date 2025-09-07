@@ -7,11 +7,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Download, Mail, Edit, FileText } from 'lucide-react';
+import { authService } from '@/lib/auth';
 import { storageService } from '@/lib/storage';
 import { productStorageService } from '@/lib/productStorage';
 import { invoiceStorageService } from '@/lib/invoiceStorage';
 import { apiService } from '@/lib/api';
-import { Quote, Settings, Product, Invoice, CreateInvoiceData } from '@/types/api';
+import { Quote, Settings, Product, Invoice, CreateInvoiceData, User } from '@/types/api';
 import { toast } from 'sonner';
 
 interface QuotePreviewProps {
@@ -23,6 +24,7 @@ export default function QuotePreview({ onNavigate, quoteId }: QuotePreviewProps)
   const [quote, setQuote] = useState<Quote | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
@@ -37,14 +39,21 @@ export default function QuotePreview({ onNavigate, quoteId }: QuotePreviewProps)
       try {
         setLoading(true);
         
+        // Load user data
+        const currentUser = authService.getCurrentUser();
+        setUser(currentUser);
+        
         if (quoteId) {
-          // Load quote
-          const quotes = await storageService.getQuotes();
-          const foundQuote = quotes.find(q => q.id === quoteId);
-          if (foundQuote) {
+          // Load quote from API only
+          try {
+            const foundQuote = await apiService.getQuote(quoteId);
             setQuote(foundQuote);
-          } else {
-            console.error('Quote not found:', quoteId);
+          } catch (apiError) {
+            console.error('Failed to load quote from API:', apiError);
+            // Don't fall back to local storage - force API usage
+            toast.error('Quote not found');
+            onNavigate('quote-history');
+            return;
           }
         }
 
@@ -71,8 +80,8 @@ export default function QuotePreview({ onNavigate, quoteId }: QuotePreviewProps)
     
     try {
       // Update status in database via API
-      await apiService.updateQuoteStatus(quote.id, newStatus);
-      setQuote(prev => prev ? { ...prev, status: newStatus } : null);
+      const updatedQuote = await apiService.updateQuoteStatus(quote.id, newStatus);
+      setQuote(updatedQuote);
       
       // Show success message
       toast.success(`Quote status updated to ${newStatus}`);
@@ -316,10 +325,20 @@ ${settings.branding?.website ? `Website: ${settings.branding.website}` : ''}`;
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <Button variant="outline" onClick={() => onNavigate('quote-history')}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Quotes
-          </Button>
+          <div className="flex items-center space-x-4">
+            <Button variant="outline" onClick={() => onNavigate('quote-history')}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Quotes
+            </Button>
+            {user && (
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-700">{user.name}</span>
+                <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                  {user.role}
+                </Badge>
+              </div>
+            )}
+          </div>
           <div className="flex space-x-2">
             <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
               <Download className="w-4 h-4 mr-2" />

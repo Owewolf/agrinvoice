@@ -223,96 +223,36 @@ INSERT INTO settings (currency, language, branding, payments) VALUES
  '{"bankName": "First National Bank", "accountName": "AgriHover Drone Services", "accountNumber": "12345678901", "branchCode": "250655"}'
 ) ON CONFLICT DO NOTHING;
 
--- Sample product catalog
-INSERT INTO products (name, description, category, pricing_type, base_rate, sku, unit, is_active) VALUES 
--- Drone spraying services with tiered pricing
-('Drone Spraying - Herbicide', 'Precision herbicide application using agricultural drones', 'spraying', 'tiered', 150.00, 'SPRAY-HERB-001', 'hectare', true),
-('Drone Spraying - Insecticide', 'Targeted insecticide application for pest control', 'spraying', 'tiered', 165.00, 'SPRAY-INSECT-001', 'hectare', true),
-('Drone Spraying - Fungicide', 'Fungicide application for disease prevention', 'spraying', 'tiered', 160.00, 'SPRAY-FUNGI-001', 'hectare', true),
+-- Migration: Add website field to existing branding data (for databases created before this update)
+-- This ensures compatibility with existing installations
+DO $$
+BEGIN
+    -- Check if any settings exist without website field in branding
+    IF EXISTS (
+        SELECT 1 FROM settings 
+        WHERE branding IS NOT NULL 
+        AND NOT (branding ? 'website')
+    ) THEN
+        -- Add website field to existing branding data
+        UPDATE settings 
+        SET branding = branding || '{"website": "https://www.yourcompany.com"}'
+        WHERE branding IS NOT NULL 
+        AND NOT (branding ? 'website');
+        
+        RAISE NOTICE 'Website field added to existing branding data. Please update with your actual website URL in the admin settings.';
+    END IF;
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Ignore errors in case the settings table doesn't exist yet
+        NULL;
+END $$;
 
--- Granular application services
-('Granular Fertilizer Application', 'Precision fertilizer spreading using drones', 'granular', 'tiered', 120.00, 'GRAN-FERT-001', 'hectare', true),
-('Granular Seed Application', 'Precision seeding using drone technology', 'granular', 'tiered', 180.00, 'GRAN-SEED-001', 'hectare', true),
-
--- Travel and logistics
-('Travel - Local (0-50km)', 'Local travel costs for service delivery', 'travelling', 'per_km', 15.00, 'TRAVEL-LOCAL-001', 'kilometer', true),
-('Travel - Regional (50-200km)', 'Regional travel costs for service delivery', 'travelling', 'per_km', 12.00, 'TRAVEL-REGION-001', 'kilometer', true),
-('Travel - Long Distance (200km+)', 'Long distance travel for remote locations', 'travelling', 'per_km', 10.00, 'TRAVEL-LONG-001', 'kilometer', true),
-
--- Imaging and mapping services
-('Aerial Mapping - NDVI', 'Crop health assessment using NDVI imaging', 'imaging', 'flat', 250.00, 'IMAGE-NDVI-001', 'flight', true),
-('Aerial Photography', 'High-resolution aerial photography services', 'imaging', 'flat', 350.00, 'IMAGE-PHOTO-001', 'flight', true),
-('Thermal Imaging', 'Thermal imaging for irrigation and stress analysis', 'imaging', 'flat', 400.00, 'IMAGE-THERMAL-001', 'flight', true),
-
--- Accommodation (if overnight stays are required)
-('Accommodation - Standard', 'Standard accommodation for multi-day operations', 'accommodation', 'flat', 800.00, 'ACCOM-STD-001', 'night', true),
-('Accommodation - Premium', 'Premium accommodation for extended operations', 'accommodation', 'flat', 1200.00, 'ACCOM-PREM-001', 'night', true)
-ON CONFLICT (sku) DO NOTHING;
-
--- Tiered pricing for spraying services (volume discounts)
-INSERT INTO product_tiers (product_id, threshold, rate) 
-SELECT p.id, t.threshold, t.rate
-FROM products p
-CROSS JOIN (VALUES 
-    (0, 150.00),    -- 0+ hectares: standard rate
-    (50, 140.00),   -- 50+ hectares: 6.7% discount
-    (100, 130.00),  -- 100+ hectares: 13.3% discount
-    (200, 120.00),  -- 200+ hectares: 20% discount
-    (500, 110.00)   -- 500+ hectares: 26.7% discount
-) AS t(threshold, rate)
-WHERE p.sku = 'SPRAY-HERB-001'
-ON CONFLICT DO NOTHING;
-
-INSERT INTO product_tiers (product_id, threshold, rate) 
-SELECT p.id, t.threshold, t.rate
-FROM products p
-CROSS JOIN (VALUES 
-    (0, 165.00),    -- 0+ hectares: standard rate
-    (50, 155.00),   -- 50+ hectares: 6.1% discount
-    (100, 145.00),  -- 100+ hectares: 12.1% discount
-    (200, 135.00),  -- 200+ hectares: 18.2% discount
-    (500, 125.00)   -- 500+ hectares: 24.2% discount
-) AS t(threshold, rate)
-WHERE p.sku = 'SPRAY-INSECT-001'
-ON CONFLICT DO NOTHING;
-
-INSERT INTO product_tiers (product_id, threshold, rate) 
-SELECT p.id, t.threshold, t.rate
-FROM products p
-CROSS JOIN (VALUES 
-    (0, 160.00),    -- 0+ hectares: standard rate
-    (50, 150.00),   -- 50+ hectares: 6.3% discount
-    (100, 140.00),  -- 100+ hectares: 12.5% discount
-    (200, 130.00),  -- 200+ hectares: 18.8% discount
-    (500, 120.00)   -- 500+ hectares: 25% discount
-) AS t(threshold, rate)
-WHERE p.sku = 'SPRAY-FUNGI-001'
-ON CONFLICT DO NOTHING;
-
--- Tiered pricing for granular services
-INSERT INTO product_tiers (product_id, threshold, rate) 
-SELECT p.id, t.threshold, t.rate
-FROM products p
-CROSS JOIN (VALUES 
-    (0, 120.00),    -- 0+ hectares: standard rate
-    (50, 110.00),   -- 50+ hectares: 8.3% discount
-    (100, 100.00),  -- 100+ hectares: 16.7% discount
-    (200, 90.00),   -- 200+ hectares: 25% discount
-    (500, 80.00)    -- 500+ hectares: 33.3% discount
-) AS t(threshold, rate)
-WHERE p.sku = 'GRAN-FERT-001'
-ON CONFLICT DO NOTHING;
-
-INSERT INTO product_tiers (product_id, threshold, rate) 
-SELECT p.id, t.threshold, t.rate
-FROM products p
-CROSS JOIN (VALUES 
-    (0, 180.00),    -- 0+ hectares: standard rate
-    (50, 170.00),   -- 50+ hectares: 5.6% discount
-    (100, 160.00),  -- 100+ hectares: 11.1% discount
-    (200, 150.00),  -- 200+ hectares: 16.7% discount
-    (500, 140.00)   -- 500+ hectares: 22.2% discount
-) AS t(threshold, rate)
-WHERE p.sku = 'GRAN-SEED-001'
-ON CONFLICT DO NOTHING;
-
+-- Verification: Display current branding structure (optional - comment out in production)
+-- SELECT 
+--     branding->>'companyName' as company_name,
+--     branding->>'website' as website,
+--     branding->'contactInfo'->>'email' as email,
+--     branding->'contactInfo'->>'phone' as phone,
+--     branding->'contactInfo'->>'address' as address
+-- FROM settings 
+-- LIMIT 1;

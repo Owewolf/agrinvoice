@@ -11,8 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Plus, Edit, Trash2, Settings, X } from 'lucide-react';
-import { Product, ProductTier, ProductCategory, PricingType } from '@/types/api';
+import { Product, ProductTier, ProductCategory, PricingType, User } from '@/types/api';
 import { productStorageService } from '@/lib/productStorage';
+import { authService } from '@/lib/auth';
 import { PRODUCT_CATEGORIES, PRICING_TYPES, getUnitForCategory, createDefaultProduct } from '@/lib/products';
 
 interface ProductsProps {
@@ -21,12 +22,16 @@ interface ProductsProps {
 
 export default function Products({ onNavigate }: ProductsProps) {
   const [products, setProducts] = useState<Product[]>([]);
+  const [user, setUser] = useState<User | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'all'>('all');
 
   useEffect(() => {
     loadProducts();
+    // Load current user
+    const currentUser = authService.getCurrentUser();
+    setUser(currentUser);
   }, []);
 
   const loadProducts = async () => {
@@ -102,10 +107,20 @@ export default function Products({ onNavigate }: ProductsProps) {
               </Button>
               <h1 className="text-xl font-bold text-gray-900">Products Management</h1>
             </div>
-            <Button onClick={handleAddProduct}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Product
-            </Button>
+            <div className="flex items-center space-x-4">
+              {user && (
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-700">{user.name}</span>
+                  <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                    {user.role}
+                  </Badge>
+                </div>
+              )}
+              <Button onClick={handleAddProduct}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Product
+              </Button>
+            </div>
           </div>
         </div>
       </header>

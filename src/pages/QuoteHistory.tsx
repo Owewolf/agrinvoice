@@ -9,6 +9,7 @@ import { ArrowLeft, Search, Eye, Trash2, Plus, Edit } from 'lucide-react';
 import { authService } from '@/lib/auth';
 import { storageService } from '@/lib/storage';
 import { clientStorageService } from '@/lib/clientStorage';
+import { apiService } from '@/lib/api';
 import { Quote, User, Settings, QuoteItem } from '@/types/api';
 
 interface QuoteHistoryProps {
@@ -38,18 +39,26 @@ export default function QuoteHistory({ onNavigate }: QuoteHistoryProps) {
         setUser(currentUser);
         setSettings(currentSettings);
         
-        const allQuotes = await storageService.getQuotes();
-        let userQuotes = allQuotes;
-        
-        if (currentUser?.role !== 'admin') {
-          userQuotes = allQuotes.filter(q => q.userId === currentUser?.id);
+        // Load quotes from API only
+        try {
+          const allQuotes = await apiService.getQuotes();
+          let userQuotes = allQuotes;
+          
+          if (currentUser?.role !== 'admin') {
+            userQuotes = allQuotes.filter(q => q.userId === currentUser?.id);
+          }
+          
+          // Sort by creation date (newest first)
+          userQuotes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          
+          setQuotes(userQuotes);
+          setFilteredQuotes(userQuotes);
+        } catch (apiError) {
+          console.error('Failed to load quotes from API:', apiError);
+          // Don't fall back to local storage - force API usage
+          setQuotes([]);
+          setFilteredQuotes([]);
         }
-        
-        // Sort by creation date (newest first)
-        userQuotes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        
-        setQuotes(userQuotes);
-        setFilteredQuotes(userQuotes);
       } catch (error) {
         console.error('Failed to load quotes:', error);
       }
@@ -80,7 +89,15 @@ export default function QuoteHistory({ onNavigate }: QuoteHistoryProps) {
   const handleDeleteQuote = async (quoteId: string) => {
     if (window.confirm('Are you sure you want to delete this quote?')) {
       try {
-        await storageService.deleteQuote(quoteId);
+        // Try to delete from API first
+        try {
+          await apiService.deleteQuote(quoteId);
+        } catch (apiError) {
+          console.warn('Failed to delete from API, trying local storage:', apiError);
+          await storageService.deleteQuote(quoteId);
+        }
+        
+        // Update local state
         const updatedQuotes = quotes.filter(q => q.id !== quoteId);
         setQuotes(updatedQuotes);
       } catch (error) {
@@ -116,10 +133,20 @@ export default function QuoteHistory({ onNavigate }: QuoteHistoryProps) {
               </Button>
               <h1 className="text-xl font-bold text-gray-900">Quote History</h1>
             </div>
-            <Button onClick={() => onNavigate('new-quote')}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Quote
-            </Button>
+            <div className="flex items-center space-x-4">
+              {user && (
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-700">{user.name}</span>
+                  <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                    {user.role}
+                  </Badge>
+                </div>
+              )}
+              <Button onClick={() => onNavigate('new-quote')}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Quote
+              </Button>
+            </div>
           </div>
         </div>
       </header>

@@ -18,8 +18,10 @@ import {
   Activity,
   UserCircle
 } from 'lucide-react';
+import { authService } from '@/lib/auth';
 import { dashboardAnalytics, type DashboardStats } from '@/lib/dashboardAnalytics';
 import { MiniBarChart, MiniLineChart, TrendIndicator } from '@/components/ui/mini-chart';
+import { User } from '@/types/api';
 
 interface DashboardProps {
   onNavigate: (page: string, params?: { quoteId?: string; invoiceId?: string }) => void;
@@ -27,11 +29,16 @@ interface DashboardProps {
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadStats = async () => {
       try {
+        // Load user data
+        const currentUser = authService.getCurrentUser();
+        setUser(currentUser);
+        
         const dashboardStats = await dashboardAnalytics.getDashboardStats();
         setStats(dashboardStats);
       } catch (error) {
@@ -100,8 +107,20 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Page Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600">Welcome back! Here's your business overview.</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+              <p className="text-gray-600">Welcome back! Here's your business overview.</p>
+            </div>
+            {user && (
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-700">{user.name}</span>
+                <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                  {user.role}
+                </Badge>
+              </div>
+            )}
+          </div>
         </div>
         {/* Top KPI Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

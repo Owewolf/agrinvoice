@@ -324,16 +324,83 @@ export default function createQuotesRouter(pool) {
   router.patch('/:id/status', async (req, res) => {
     const { status } = req.body;
     try {
-      const result = await pool.query(
-        'UPDATE quotes SET status = $1 WHERE id = $2 RETURNING *',
+      // Update the quote status
+      const updateResult = await pool.query(
+        'UPDATE quotes SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
         [status, req.params.id]
       );
-      if (result.rows.length > 0) {
-        res.json(result.rows[0]);
-      } else {
-        res.status(404).json({ error: 'Quote not found' });
+      
+      if (updateResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Quote not found' });
       }
+
+      // Get the complete quote data with client info and items
+      const quote = updateResult.rows[0];
+      
+      // Get client info
+      const clientResult = await pool.query('SELECT name FROM clients WHERE id = $1', [quote.client_id]);
+      const clientName = clientResult.rows[0]?.name || 'Unknown Client';
+
+      // Get quote items with product details
+      const itemsResult = await pool.query(`
+        SELECT 
+          qi.id,
+          qi.product_id as "productId",
+          qi.quantity,
+          qi.speed,
+          qi.flow_rate as "flowRate", 
+          qi.spray_width as "sprayWidth",
+          qi.app_rate as "appRate",
+          qi.calculation,
+          p.name as product_name,
+          p.description as product_description,
+          p.category,
+          p.sku,
+          p.unit
+        FROM quote_items qi
+        JOIN products p ON qi.product_id = p.id
+        WHERE qi.quote_id = $1
+        ORDER BY qi.created_at
+      `, [quote.id]);
+
+      const items = itemsResult.rows.map(row => ({
+        id: row.id,
+        productId: row.productId,
+        quantity: row.quantity,
+        speed: row.speed,
+        flowRate: row.flowRate,
+        sprayWidth: row.sprayWidth,
+        appRate: row.appRate,
+        calculation: row.calculation,
+        product: {
+          id: row.productId,
+          name: row.product_name,
+          description: row.product_description,
+          category: row.category,
+          sku: row.sku,
+          unit: row.unit
+        }
+      }));
+
+      // Return complete quote object
+      const completeQuote = {
+        id: quote.id,
+        quoteNumber: quote.quote_number,
+        userId: quote.user_id,
+        clientId: quote.client_id,
+        clientName: clientName,
+        status: quote.status,
+        subtotal: quote.subtotal,
+        totalDiscount: quote.total_discount,
+        totalCharge: quote.total_charge,
+        items: items,
+        createdAt: quote.created_at,
+        updatedAt: quote.updated_at
+      };
+
+      res.json(completeQuote);
     } catch (err) {
+      console.error('Error updating quote status:', err);
       res.status(500).json({ error: err.message });
     }
   });

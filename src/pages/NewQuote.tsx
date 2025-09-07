@@ -13,9 +13,11 @@ import { storageService } from '@/lib/storage';
 import { productStorageService } from '@/lib/productStorage';
 import { calculateProductCost, PRODUCT_CATEGORIES } from '@/lib/products';
 import { QuoteProduct } from '@/types';
-import { Product, Quote, QuoteItem } from '@/types/api';
+import { Product, Quote, QuoteItem, User } from '@/types/api';
 import { ClientDropdown } from '@/components/clients/ClientDropdown';
 import { clientStorageService } from '@/lib/clientStorage';
+import { apiService } from '@/lib/api';
+import { toast } from 'sonner';
 
 interface NewQuoteProps {
   onNavigate: (page: string, quoteId?: string) => void;
@@ -43,6 +45,7 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
   const [clientId, setClientId] = useState<string | null>(null);
   const [clientName, setClientName] = useState('');
   const [clientContact, setClientContact] = useState('');
+  const [user, setUser] = useState<User | null>(null);
   const [productSelections, setProductSelections] = useState<ProductSelection[]>([]);
   const [quoteCalculation, setQuoteCalculation] = useState({
     subtotal: 0,
@@ -71,6 +74,9 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
 
   useEffect(() => {
     loadProducts();
+    // Load current user
+    const currentUser = authService.getCurrentUser();
+    setUser(currentUser);
   }, []);
 
   // Load existing quote for editing
@@ -263,67 +269,63 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
 
   const handleSaveQuote = async () => {
     if (!clientId) {
-      alert('Please select a client');
+      toast.error('Please select a client first');
       return;
     }
 
-    const selectedProducts = productSelections.filter(sel => sel.selected && sel.calculation);
+    const selectedProducts = productSelections.filter(sel => sel.selected);
     if (selectedProducts.length === 0) {
-      alert('Please select at least one product');
+      toast.error('Please add at least one product to the quote');
       return;
     }
-
-    const user = authService.getCurrentUser();
-    if (!user) return;
 
     try {
-      const client = await clientStorageService.getClient(clientId);
-      if (!client) {
-        alert('Selected client not found');
+      const currentUser = authService.getCurrentUser();
+      if (!currentUser) {
+        toast.error('User not authenticated');
         return;
       }
 
-      const quoteProducts: QuoteProduct[] = selectedProducts.map(sel => ({
-        productId: sel.product.id,
-        product: sel.product,
-        quantity: sel.quantity,
-        appliedRate: sel.calculation!.appliedRate,
-        subtotal: sel.calculation!.subtotal,
-        discountAmount: sel.calculation!.discountAmount,
-        total: sel.calculation!.total,
-        speed: sel.speed,
-        flowRate: sel.flowRate,
-        sprayWidth: sel.sprayWidth,
-        appRate: sel.calculation!.appRate
-      }));
-
-      const quote = {
-        ...(quoteId && { id: quoteId }), // Include ID for updates
-        clientId,
-        items: selectedProducts.map(sel => ({
-          productId: sel.product.id,
-          quantity: sel.quantity,
-          speed: sel.speed,
-          flowRate: sel.flowRate,
-          sprayWidth: sel.sprayWidth,
-          appRate: sel.calculation!.appRate,
+      const quoteData = {
+        clientId: clientId,
+        userId: currentUser.id,
+        items: selectedProducts.map(selection => ({
+          productId: selection.product.id,
+          quantity: selection.quantity,
+          speed: selection.speed,
+          flowRate: selection.flowRate,
+          sprayWidth: selection.sprayWidth,
+          appRate: selection.calculation?.appRate,
           calculation: {
-            appliedTier: null,
-            rate: sel.calculation!.appliedRate,
-            subtotal: sel.calculation!.subtotal,
-            discount: sel.calculation!.discountAmount,
-            finalTotal: sel.calculation!.total
+            rate: selection.calculation?.appliedRate || selection.product.baseRate,
+            subtotal: selection.calculation?.subtotal || 0,
+            discount: selection.calculation?.discountAmount || 0,
+            finalTotal: selection.calculation?.total || 0
           }
-        }))
-      } as { clientId: string; items: QuoteItem[]; id?: string };
+        })),
+        subtotal: quoteCalculation.subtotal,
+        totalDiscount: quoteCalculation.totalDiscount,
+        totalCharge: quoteCalculation.totalCharge,
+        status: 'draft' as const
+      };
 
-      console.log(`💾 ${quoteId ? 'Updating' : 'Saving'} quote:`, quote);
-      const savedQuote = await storageService.saveQuote(quote);
-      console.log('✅ Quote saved successfully:', savedQuote);
-      onNavigate('quote-preview', savedQuote.id);
+      await apiService.createQuote(quoteData);
+      
+      toast.success('Quote created successfully!');
+      
+      // Clear form
+      setClientId(null);
+      setClientName('');
+      setClientContact('');
+      setProductSelections(prev => prev.map(sel => ({
+        ...sel,
+        selected: false,
+        quantity: 0,
+        calculation: undefined
+      })));
     } catch (error) {
-      console.error('Failed to save quote:', error);
-      alert('Failed to save quote');
+      console.error('Error creating quote:', error);
+      toast.error('Failed to create quote. Please try again.');
     }
   };
 
@@ -347,8 +349,20 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Page Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">{quoteId ? 'Edit Quote' : 'Create New Quote'}</h1>
-          <p className="text-gray-600">Generate a new quote with real-time pricing</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">{quoteId ? 'Edit Quote' : 'Create New Quote'}</h1>
+              <p className="text-gray-600">Generate a new quote with real-time pricing</p>
+            </div>
+            {user && (
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-700">{user.name}</span>
+                <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                  {user.role}
+                </Badge>
+              </div>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Client Info & Product Selection */}
