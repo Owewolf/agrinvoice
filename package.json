@@ -8,7 +8,11 @@
     "lint": "eslint --quiet ./src",
     "preview": "vite preview",
     "server": "node src/server.js",
-    "dev:server": "nodemon src/server.js"
+    "dev:server": "nodemon src/server.js",
+    "security:audit": "npm audit",
+    "security:audit-fix": "npm audit fix",
+    "security:check": "npx better-npm-audit",
+    "env:check": "node -e \"console.log('.env file exists:', require('fs').existsSync('.env')); console.log('Required vars:', ['DB_HOST', 'DB_PASSWORD', 'JWT_SECRET'].every(v => process.env[v]))\""
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

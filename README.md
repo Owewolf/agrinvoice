@@ -1,15 +1,50 @@
-# Shadcn-UI Template Usage Instructions
+# AgriInvoice - Agricultural Invoice & Quote Management System
+
+## 🔒 Security Setup (IMPORTANT - READ FIRST)
+
+### Initial Security Configuration
+
+**CRITICAL:** Before running this application, you must configure environment variables:
+
+1. **Copy the environment template:**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Edit `.env` file with secure values:**
+   ```bash
+   nano .env
+   ```
+
+3. **Replace ALL placeholder values:**
+   - `DB_PASSWORD`: Use a strong, unique password (16+ characters)
+   - `JWT_SECRET`: Generate a cryptographically secure secret (32+ characters)
+   - Update database credentials as needed
+
+4. **Generate a secure JWT secret:**
+   ```bash
+   # Option 1: Using Node.js
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   
+   # Option 2: Using OpenSSL
+   openssl rand -hex 32
+   ```
+
+### 🚨 Security Warnings
+
+- **NEVER** commit `.env` files to version control
+- Use different secrets for development, staging, and production
+- Regularly rotate JWT secrets and database passwords
+- Ensure PostgreSQL is properly secured with restricted access
 
 ## Technology Stack
 
 This project is built with:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-- PostgreSQL (Database)
+- **Frontend:** React, TypeScript, Vite, Tailwind CSS, shadcn/ui
+- **Backend:** Node.js, Express.js, PostgreSQL
+- **Authentication:** JWT with bcrypt password hashing
+- **Database:** PostgreSQL with UUID primary keys
 
 All shadcn/ui components have been downloaded under `@/components/ui`.
 

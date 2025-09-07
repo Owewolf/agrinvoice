@@ -211,10 +211,10 @@ COMMENT ON COLUMN invoices.banking IS 'JSON: banking details copied from setting
 
 -- Seed data for production use
 
--- Default admin user (password: admin123 - MUST be changed in production)
-INSERT INTO users (name, email, password_hash, role) VALUES 
-('Administrator', 'admin@agrihover.com', crypt('admin123', gen_salt('bf')), 'admin')
-ON CONFLICT (email) DO NOTHING;
+-- SECURITY NOTE: Create admin user manually after deployment
+-- Run this command in PostgreSQL with a secure password:
+-- INSERT INTO users (name, email, password_hash, role) VALUES 
+-- ('Administrator', 'admin@yourcompany.com', crypt('YOUR_SECURE_PASSWORD', gen_salt('bf')), 'admin');
 
 -- Default application settings
 INSERT INTO settings (currency, language, branding, payments) VALUES 
