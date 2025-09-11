@@ -12,7 +12,7 @@ import { storageService } from '@/lib/storage';
 import { productStorageService } from '@/lib/productStorage';
 import { invoiceStorageService } from '@/lib/invoiceStorage';
 import { apiService } from '@/lib/api';
-import { Quote, Settings, Product, Invoice, CreateInvoiceData, User } from '@/types/api';
+import { Quote, Settings, Product, Invoice, CreateInvoiceData } from '@/types/api';
 import { toast } from 'sonner';
 
 interface QuotePreviewProps {
@@ -24,7 +24,6 @@ export default function QuotePreview({ onNavigate, quoteId }: QuotePreviewProps)
   const [quote, setQuote] = useState<Quote | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
-  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
@@ -41,7 +40,6 @@ export default function QuotePreview({ onNavigate, quoteId }: QuotePreviewProps)
         
         // Load user data
         const currentUser = authService.getCurrentUser();
-        setUser(currentUser);
         
         if (quoteId) {
           // Load quote from API only
@@ -73,7 +71,7 @@ export default function QuotePreview({ onNavigate, quoteId }: QuotePreviewProps)
     };
 
     loadData();
-  }, [quoteId]);
+  }, [quoteId, onNavigate]);
 
   const handleStatusUpdate = async (newStatus: 'draft' | 'sent' | 'accepted' | 'rejected') => {
     if (!quote) return;
@@ -330,14 +328,6 @@ ${settings.branding?.website ? `Website: ${settings.branding.website}` : ''}`;
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Quotes
             </Button>
-            {user && (
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-700">{user.name}</span>
-                <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                  {user.role}
-                </Badge>
-              </div>
-            )}
           </div>
           <div className="flex space-x-2">
             <Button variant="outline" size="sm" onClick={handleDownloadPDF}>

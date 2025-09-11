@@ -21,7 +21,6 @@ import {
 import { authService } from '@/lib/auth';
 import { dashboardAnalytics, type DashboardStats } from '@/lib/dashboardAnalytics';
 import { MiniBarChart, MiniLineChart, TrendIndicator } from '@/components/ui/mini-chart';
-import { User } from '@/types/api';
 
 interface DashboardProps {
   onNavigate: (page: string, params?: { quoteId?: string; invoiceId?: string }) => void;
@@ -29,16 +28,11 @@ interface DashboardProps {
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadStats = async () => {
       try {
-        // Load user data
-        const currentUser = authService.getCurrentUser();
-        setUser(currentUser);
-        
         const dashboardStats = await dashboardAnalytics.getDashboardStats();
         setStats(dashboardStats);
       } catch (error) {
@@ -112,14 +106,6 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
               <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
               <p className="text-gray-600">Welcome back! Here's your business overview.</p>
             </div>
-            {user && (
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-700">{user.name}</span>
-                <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                  {user.role}
-                </Badge>
-              </div>
-            )}
           </div>
         </div>
         {/* Top KPI Row */}

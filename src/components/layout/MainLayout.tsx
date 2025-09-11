@@ -1,8 +1,10 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { BottomNavigation } from '@/components/navigation/BottomNavigation';
 import { HamburgerMenu } from '@/components/navigation/HamburgerMenu';
 import { Badge } from '@/components/ui/badge';
+import { authService } from '@/lib/auth';
+import { User } from '@/types';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -10,6 +12,12 @@ interface MainLayoutProps {
 
 export function MainLayout({ children }: MainLayoutProps) {
   const location = useLocation();
+  const [user, setUser] = useState<User | null>(null);
+  
+  useEffect(() => {
+    const currentUser = authService.getCurrentUser();
+    setUser(currentUser);
+  }, []);
   
   // Don't show navigation on login page
   const isLoginPage = location.pathname === '/login';
@@ -50,10 +58,17 @@ export function MainLayout({ children }: MainLayoutProps) {
                   day: 'numeric' 
                 })}
               </Badge>
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-gray-900">Admin User</p>
-                <p className="text-xs text-gray-500">Online</p>
-              </div>
+              {user && (
+                <div className="flex items-center space-x-2">
+                  <div className="text-right hidden sm:block">
+                    <p className="text-sm font-medium text-gray-900">{user.name}</p>
+                    <p className="text-xs text-gray-500">Online</p>
+                  </div>
+                  <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="text-xs">
+                    {user.role.toUpperCase()}
+                  </Badge>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -75,7 +90,14 @@ export function MainLayout({ children }: MainLayoutProps) {
               />
               <h1 className="text-base font-bold text-gray-900">AgriHover</h1>
             </div>
-            <div className="w-8" /> {/* Spacer for centering */}
+            {user && (
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-gray-900">{user.name}</span>
+                <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="text-xs">
+                  {user.role.toUpperCase()}
+                </Badge>
+              </div>
+            )}
           </div>
         </div>
       </header>

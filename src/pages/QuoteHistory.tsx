@@ -26,7 +26,6 @@ interface QuoteWithClient extends Omit<Quote, 'items'> {
 export default function QuoteHistory({ onNavigate }: QuoteHistoryProps) {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [filteredQuotes, setFilteredQuotes] = useState<Quote[]>([]);
-  const [user, setUser] = useState<User | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -36,7 +35,6 @@ export default function QuoteHistory({ onNavigate }: QuoteHistoryProps) {
       try {
         const currentUser = authService.getCurrentUser();
         const currentSettings = await storageService.getSettings();
-        setUser(currentUser);
         setSettings(currentSettings);
         
         // Load quotes from API only
@@ -134,14 +132,6 @@ export default function QuoteHistory({ onNavigate }: QuoteHistoryProps) {
               <h1 className="text-xl font-bold text-gray-900">Quote History</h1>
             </div>
             <div className="flex items-center space-x-4">
-              {user && (
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-700">{user.name}</span>
-                  <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                    {user.role}
-                  </Badge>
-                </div>
-              )}
               <Button onClick={() => onNavigate('new-quote')}>
                 <Plus className="h-4 w-4 mr-2" />
                 New Quote

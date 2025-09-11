@@ -13,7 +13,7 @@ import { storageService } from '@/lib/storage';
 import { productStorageService } from '@/lib/productStorage';
 import { calculateProductCost, PRODUCT_CATEGORIES } from '@/lib/products';
 import { QuoteProduct } from '@/types';
-import { Product, Quote, QuoteItem, User } from '@/types/api';
+import { Product, Quote, QuoteItem } from '@/types/api';
 import { ClientDropdown } from '@/components/clients/ClientDropdown';
 import { clientStorageService } from '@/lib/clientStorage';
 import { apiService } from '@/lib/api';
@@ -45,7 +45,6 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
   const [clientId, setClientId] = useState<string | null>(null);
   const [clientName, setClientName] = useState('');
   const [clientContact, setClientContact] = useState('');
-  const [user, setUser] = useState<User | null>(null);
   const [productSelections, setProductSelections] = useState<ProductSelection[]>([]);
   const [quoteCalculation, setQuoteCalculation] = useState({
     subtotal: 0,
@@ -76,7 +75,6 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
     loadProducts();
     // Load current user
     const currentUser = authService.getCurrentUser();
-    setUser(currentUser);
   }, []);
 
   // Load existing quote for editing
@@ -354,14 +352,6 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
               <h1 className="text-3xl font-bold text-gray-900">{quoteId ? 'Edit Quote' : 'Create New Quote'}</h1>
               <p className="text-gray-600">Generate a new quote with real-time pricing</p>
             </div>
-            {user && (
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-700">{user.name}</span>
-                <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                  {user.role}
-                </Badge>
-              </div>
-            )}
           </div>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
