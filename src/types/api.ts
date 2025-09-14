@@ -32,11 +32,14 @@ export interface Client {
     email: string;
     phone: string;
     vatNumber: string;
-    address: ClientAddress;
+    address: string | ClientAddress; // Can be string from backend or parsed object
     notes?: string;
     createdBy: string;
     createdAt: string;
     updatedAt: string;
+    totalQuotes?: number;
+    totalInvoices?: number;
+    outstandingAmount?: number;
 }
 
 // Product types

@@ -14,10 +14,10 @@ import { formatCurrency, generateClientDisplayName, getClientInitials, sortClien
 
 // Type adapter to convert API Client to old Client format for utility functions
 const adaptClientForUtils = (client: Client): OldClient => ({
-  id: client.id!,
-  fullName: client.name,
+  id: client.id,
+  fullName: client.name || '',
   companyName: client.vatNumber || '',
-  phoneNumber: client.phone,
+  phoneNumber: client.phone || '',
   emailAddress: client.email || '',
   physicalAddress: typeof client.address === 'string' ? client.address : 
     client.address ? `${client.address.street || ''} ${client.address.city || ''} ${client.address.postalCode || ''}`.trim() : '',
@@ -213,7 +213,6 @@ export function Clients({ onNavigate }: ClientsProps) {
               </TableHeader>
               <TableBody>
                 {filteredAndSortedClients.map((client) => {
-                  const stats = clientStorageService.getClientStats(client.id);
                   return (
                     <TableRow key={client.id}>
                       <TableCell>
@@ -245,17 +244,17 @@ export function Clients({ onNavigate }: ClientsProps) {
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary">
-                          0
+                          {client.totalQuotes || 0}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary">
-                          0
+                          {client.totalInvoices || 0}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {formatCurrency(0)}
+                          {formatCurrency(client.outstandingAmount || 0)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -427,7 +426,7 @@ export function Clients({ onNavigate }: ClientsProps) {
           <ClientDetailsModal
             open={showDetailsModal}
             onOpenChange={setShowDetailsModal}
-            client={adaptClientForUtils(selectedClient)}
+            client={selectedClient}
             onNavigate={onNavigate}
           />
         </>

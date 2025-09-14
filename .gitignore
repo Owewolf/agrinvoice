@@ -83,3 +83,4 @@ jspm_packages/
 # Temporary folders
 tmp/
 temp/
+test-status-update.js

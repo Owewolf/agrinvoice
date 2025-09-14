@@ -105,11 +105,6 @@ export default function Login({ onNavigate }: LoginProps) {
                   {loading ? 'Logging in...' : 'Login'}
                 </Button>
               </form>
-              <div className="mt-4 p-3 bg-gray-50 rounded-md text-sm">
-                <p className="font-medium">Demo Credentials:</p>
-                <p>Admin: admin@agrihover.com / password</p>
-                <p>Any email with password: password</p>
-              </div>
             </TabsContent>
             
             <TabsContent value="register">

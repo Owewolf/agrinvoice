@@ -208,7 +208,16 @@ AgriHover is a comprehensive professional drone services invoice and quote manag
 
 ## User Interface & Navigation
 
+### Universal Header System
+- **Consistent User Display**: User name and role badge displayed in the universal header across all pages
+- **Authentication Status**: Real-time display of logged-in user information with online status
+- **Role-Based Badges**: Visual distinction between admin and user roles with appropriate styling
+- **Responsive Design**: Adaptive header layout for desktop and mobile devices
+- **Date Display**: Current date badge alongside user information for context
+- **Clean Architecture**: Centralized user display eliminates code duplication across pages
+
 ### Layout System
+- **MainLayout Component**: Universal layout wrapper providing consistent header across all pages
 - **Responsive Design**: Mobile-first approach with adaptive layouts
 - **Bottom Navigation**: Mobile-optimized navigation with touch-friendly interface
 - **Hamburger Menu**: Desktop navigation with collapsible sidebar
@@ -226,12 +235,15 @@ AgriHover is a comprehensive professional drone services invoice and quote manag
 
 ### Component Architecture
 - **shadcn/ui Library**: Consistent, accessible UI components
+- **Universal Header**: Centralized user authentication display in MainLayout component
+- **Page-Specific Headers**: Clean page headers without duplicated user information
 - **Form Components**: Validated forms with real-time feedback
 - **Data Tables**: Sortable, filterable tables with pagination
 - **Modal System**: Overlay dialogs for forms and confirmations
 - **Loading States**: Progressive loading with skeleton screens
 - **Error Handling**: Graceful error display with recovery options
 - **Toast Notifications**: Non-intrusive status messages
+- **Role-Based UI**: Conditional rendering based on user permissions
 
 ## Key Features & Functionality
 
@@ -278,12 +290,12 @@ AgriHover is a comprehensive professional drone services invoice and quote manag
 - `POST /api/auth/refresh` - JWT token refresh mechanism
 
 ### Client Management API
-- `GET /api/clients` - Paginated client listing with search and filter
-- `POST /api/clients` - Create new client with validation
-- `GET /api/clients/:id` - Detailed client information retrieval
-- `PUT /api/clients/:id` - Client information updates
+- `GET /api/clients` - Paginated client listing with search, filter, and real-time statistics
+- `POST /api/clients` - Create new client with validation and camelCase field formatting
+- `GET /api/clients/:id` - Detailed client information retrieval with proper field transformation
+- `PUT /api/clients/:id` - Client information updates with consistent field naming
 - `DELETE /api/clients/:id` - Client deletion with cascade handling
-- `GET /api/clients/:id/stats` - Client-specific statistics and metrics
+- `GET /api/clients/:id/stats` - Client-specific statistics including totalQuotes, totalInvoices, outstandingAmount
 
 ### Product Management API
 - `GET /api/products` - Product catalog with category filtering
@@ -304,8 +316,9 @@ AgriHover is a comprehensive professional drone services invoice and quote manag
 ### Invoice Management API
 - `GET /api/invoices` - Invoice listing with payment status filtering
 - `POST /api/invoices` - Invoice creation from quotes
-- `GET /api/invoices/:id` - Detailed invoice information
-- `PUT /api/invoices/:id` - Invoice status and payment updates
+- `GET /api/invoices/:id` - Detailed invoice information with proper field transformation
+- `PUT /api/invoices/:id` - Full invoice updates (issue date, due date, banking, status)
+- `PATCH /api/invoices/:id/status` - Invoice status updates with proper field formatting
 - `GET /api/invoices/:id/pdf` - PDF generation and download
 
 ### Settings & Configuration API
@@ -416,6 +429,51 @@ pnpm server      # Backend API server
 - **Mobile API**: Mobile application support
 - **Third-Party Services**: Weather data, GPS integration potential
 
+## Recent Updates & Improvements
+
+### Invoice Status Update System (September 2025)
+- **Fixed Invoice Status Updates**: Resolved critical issue where invoice status changes weren't persisting to database
+- **API Consistency**: Fixed PATCH endpoint to return properly formatted camelCase field names (totalCharge, totalDiscount, etc.)
+- **Frontend Error Handling**: Added comprehensive null checks for financial fields to prevent undefined errors
+- **Database Field Mapping**: Fixed field name conflicts in invoice GET by ID queries using explicit field aliasing
+- **Status Persistence**: Removed redundant storage calls that were causing 500 errors on status updates
+- **User Feedback**: Added proper toast notifications for successful status changes and error handling
+
+### Client Data Display Enhancement (September 2025)
+- **Real-time Statistics**: Fixed clients page to display current data for quotes, invoices, and outstanding amounts
+- **Backend Query Optimization**: Implemented JOINs to aggregate client statistics (totalQuotes, totalInvoices, outstandingAmount)
+- **Field Name Standardization**: Converted all API responses to consistent camelCase formatting
+- **Outstanding Amount Calculation**: Properly calculates amounts based on invoice status (sent/overdue contribute, paid/draft don't)
+- **Data Accuracy**: Fixed field conflicts and type mismatches between API and frontend interfaces
+
+### Dashboard User Experience (September 2025)
+- **Removed Duplicate Navigation**: Eliminated redundant action cards that duplicated menu bar functionality
+- **Enhanced Analytics Focus**: Redesigned dashboard to prioritize data insights over navigation
+- **Top Customers Improvement**: Converted navigation card into proper analytics display with ranking and revenue data
+- **Cleaner Layout**: Improved visual hierarchy and organization for better user experience
+- **Navigation Consolidation**: All navigation functions now exclusively handled through menu systems
+
+### Universal Header Implementation (September 2025)
+- **Centralized User Display**: Implemented universal header in MainLayout component showing user name and role badge
+- **Consistent UI**: User information now appears consistently across all pages next to the date
+- **Code Cleanup**: Removed duplicate user display implementations from individual pages (Dashboard, QuoteHistory, QuotePreview, NewQuote, Products)
+- **Responsive Design**: Universal header adapts to both desktop and mobile layouts
+- **Authentication Integration**: Real-time user status display with proper role-based styling
+- **Maintainability**: Single source of truth for user display reduces code duplication and improves maintenance
+
+### Bug Fixes & Stability Improvements
+- **TypeScript Compilation**: Resolved all TypeScript errors and type mismatches across the application
+- **Database Constraints**: Fixed null constraint violations in invoice updates
+- **API Response Format**: Standardized all endpoints to return consistent field naming conventions
+- **Error Boundary**: Added proper error handling for undefined financial calculations
+- **Authentication Flow**: Maintained proper authentication logic while cleaning up UI components
+
+### Component Refactoring
+- **MainLayout.tsx**: Enhanced with user authentication state management and display logic
+- **Individual Pages**: Cleaned up to remove redundant user display while preserving functional authentication logic
+- **React Hooks**: Fixed useEffect dependency warnings for proper component lifecycle management
+- **Type Safety**: Maintained TypeScript type safety throughout the refactoring process
+
 ## Directory Structure
 
 ```
@@ -441,6 +499,7 @@ agri_invoice/
 │   │   ├── AuthGuard.tsx   # Authentication protection
 │   │   ├── clients/        # Client management components
 │   │   ├── layout/         # Layout components
+│   │   │   └── MainLayout.tsx # Universal layout with header
 │   │   ├── navigation/     # Navigation components
 │   │   └── ui/             # shadcn/ui components
 │   ├── hooks/              # Custom React hooks
@@ -505,6 +564,8 @@ agri_invoice/
 - **API Marketplace**: Third-party integration ecosystem
 - **Automated Workflows**: Smart automation for routine tasks
 - **Advanced Reporting**: Custom report builder and dashboard designer
+- **Enhanced User Management**: Advanced user roles and permission system
+- **Notification System**: Real-time notifications and alerts
 
 ### Technical Improvements
 - **Microservices Architecture**: Service-oriented architecture migration

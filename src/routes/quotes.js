@@ -251,23 +251,38 @@ export default function createQuotesRouter(pool) {
   router.get('/:id', async (req, res) => {
     try {
       const result = await pool.query(`
-        SELECT q.*, c.*, 
-        json_agg(json_build_object(
-          'productId', qi.product_id,
-          'name', p.name,
-          'quantity', qi.quantity,
-          'speed', qi.speed,
-          'flowRate', qi.flow_rate,
-          'sprayWidth', qi.spray_width,
-          'appRate', qi.app_rate,
-          'calculation', qi.calculation
-        )) as items
+        SELECT 
+          q.id as quote_id,
+          q.quote_number,
+          q.user_id,
+          q.client_id,
+          q.status,
+          q.subtotal,
+          q.total_discount,
+          q.total_charge,
+          q.created_at,
+          q.updated_at,
+          c.name,
+          c.email,
+          c.phone,
+          c.vat_number,
+          c.address,
+          json_agg(json_build_object(
+            'productId', qi.product_id,
+            'name', p.name,
+            'quantity', qi.quantity,
+            'speed', qi.speed,
+            'flowRate', qi.flow_rate,
+            'sprayWidth', qi.spray_width,
+            'appRate', qi.app_rate,
+            'calculation', qi.calculation
+          )) as items
         FROM quotes q
         LEFT JOIN clients c ON q.client_id = c.id
         LEFT JOIN quote_items qi ON q.id = qi.quote_id
         LEFT JOIN products p ON qi.product_id = p.id
         WHERE q.id = $1
-        GROUP BY q.id, c.id
+        GROUP BY q.id, q.quote_number, q.user_id, q.client_id, q.status, q.subtotal, q.total_discount, q.total_charge, q.created_at, q.updated_at, c.name, c.email, c.phone, c.vat_number, c.address
       `, [req.params.id]);
 
       if (result.rows.length > 0) {
@@ -291,7 +306,7 @@ export default function createQuotesRouter(pool) {
         }
         
         const transformedQuote = {
-          id: row.id,
+          id: row.quote_id,
           quoteNumber: row.quote_number,
           userId: row.user_id,
           clientId: row.client_id,
@@ -300,7 +315,7 @@ export default function createQuotesRouter(pool) {
           totalDiscount,
           totalCharge,
           client: {
-            id: row.id,
+            id: row.client_id,
             name: row.name,
             email: row.email,
             phone: row.phone,

@@ -21,8 +21,81 @@ export default function createClientsRouter(pool) {
   // Get all clients
   router.get('/', async (req, res) => {
     try {
-      const result = await pool.query('SELECT * FROM clients ORDER BY name');
-      res.json(result.rows);
+      const query = `
+        SELECT 
+          c.id,
+          c.name,
+          c.email,
+          c.phone,
+          c.vat_number,
+          c.address,
+          c.notes,
+          c.created_by,
+          c.created_at,
+          c.updated_at,
+          COALESCE(quote_counts.total_quotes, 0) as total_quotes,
+          COALESCE(invoice_counts.total_invoices, 0) as total_invoices,
+          COALESCE(outstanding_amounts.outstanding_amount, 0) as outstanding_amount
+        FROM clients c
+        LEFT JOIN (
+          SELECT client_id, COUNT(*) as total_quotes
+          FROM quotes
+          GROUP BY client_id
+        ) quote_counts ON c.id = quote_counts.client_id
+        LEFT JOIN (
+          SELECT q.client_id, COUNT(*) as total_invoices
+          FROM invoices i
+          JOIN quotes q ON i.quote_id = q.id
+          GROUP BY q.client_id
+        ) invoice_counts ON c.id = invoice_counts.client_id
+        LEFT JOIN (
+          SELECT q.client_id, 
+                 SUM(
+                   CASE 
+                     WHEN i.status IN ('sent', 'overdue') 
+                     THEN (i.subtotal + i.total_charge - i.total_discount)
+                     ELSE 0 
+                   END
+                 ) as outstanding_amount
+          FROM invoices i
+          JOIN quotes q ON i.quote_id = q.id
+          GROUP BY q.client_id
+        ) outstanding_amounts ON c.id = outstanding_amounts.client_id
+        ORDER BY c.name
+      `;
+      
+      const result = await pool.query(query);
+      
+      // Transform the data to ensure numeric types and convert field names to camelCase
+      const transformedClients = result.rows.map(row => {
+        const { 
+          total_quotes, 
+          total_invoices, 
+          outstanding_amount, 
+          vat_number, 
+          created_at, 
+          updated_at,
+          created_by,
+          ...clientData 
+        } = row;
+        return {
+          id: clientData.id,
+          name: clientData.name,
+          email: clientData.email,
+          phone: clientData.phone,
+          address: clientData.address,
+          notes: clientData.notes,
+          vatNumber: vat_number,
+          createdBy: created_by,
+          createdAt: created_at,
+          updatedAt: updated_at,
+          totalQuotes: parseInt(total_quotes) || 0,
+          totalInvoices: parseInt(total_invoices) || 0,
+          outstandingAmount: parseFloat(outstanding_amount) || 0
+        };
+      });
+      
+      res.json(transformedClients);
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -33,7 +106,21 @@ export default function createClientsRouter(pool) {
     try {
       const result = await pool.query('SELECT * FROM clients WHERE id = $1', [req.params.id]);
       if (result.rows.length > 0) {
-        res.json(result.rows[0]);
+        const row = result.rows[0];
+        const { vat_number, created_at, updated_at, created_by, ...clientData } = row;
+        const transformedClient = {
+          id: clientData.id,
+          name: clientData.name,
+          email: clientData.email,
+          phone: clientData.phone,
+          address: clientData.address,
+          notes: clientData.notes,
+          vatNumber: vat_number,
+          createdBy: created_by,
+          createdAt: created_at,
+          updatedAt: updated_at
+        };
+        res.json(transformedClient);
       } else {
         res.status(404).json({ error: 'Client not found' });
       }
@@ -51,7 +138,21 @@ export default function createClientsRouter(pool) {
         [name, email, phone, vatNumber, JSON.stringify(address), notes, req.params.id]
       );
       if (result.rows.length > 0) {
-        res.json(result.rows[0]);
+        const row = result.rows[0];
+        const { vat_number, created_at, updated_at, created_by, ...clientData } = row;
+        const transformedClient = {
+          id: clientData.id,
+          name: clientData.name,
+          email: clientData.email,
+          phone: clientData.phone,
+          address: clientData.address,
+          notes: clientData.notes,
+          vatNumber: vat_number,
+          createdBy: created_by,
+          createdAt: created_at,
+          updatedAt: updated_at
+        };
+        res.json(transformedClient);
       } else {
         res.status(404).json({ error: 'Client not found' });
       }

@@ -6,7 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Download, Mail, MessageCircle } from 'lucide-react';
 import { storageService } from '@/lib/storage';
 import { invoiceStorageService } from '@/lib/invoiceStorage';
+import { apiService } from '@/lib/api';
 import { Invoice, Settings } from '@/types/api';
+import { toast } from 'sonner';
 
 interface InvoicePreviewProps {
   onNavigate: (page: string) => void;
@@ -41,11 +43,20 @@ export default function InvoicePreview({ onNavigate, invoiceId }: InvoicePreview
     loadData();
   }, [invoiceId]);
 
-  const handleStatusChange = (newStatus: 'draft' | 'sent' | 'paid' | 'overdue') => {
+  const handleStatusChange = async (newStatus: 'draft' | 'sent' | 'paid' | 'overdue') => {
     if (invoice) {
-      const updatedInvoice = { ...invoice, status: newStatus };
-      setInvoice(updatedInvoice);
-      invoiceStorageService.saveInvoice(updatedInvoice);
+      try {
+        // Update status in database via API
+        const updatedInvoice = await apiService.updateInvoiceStatus(invoice.id, newStatus);
+        
+        // Update local state
+        setInvoice(updatedInvoice);
+        
+        toast.success(`Invoice status updated to ${newStatus}`);
+      } catch (error) {
+        console.error('Failed to update invoice status:', error);
+        toast.error('Failed to update invoice status');
+      }
     }
   };
 
@@ -159,17 +170,17 @@ export default function InvoicePreview({ onNavigate, invoiceId }: InvoicePreview
               <tbody>
                 <tr>
                   <td><strong>Subtotal</strong></td>
-                  <td class="text-right"><strong>${settings.currency} ${invoice.subtotal.toFixed(2)}</strong></td>
+                  <td class="text-right"><strong>${settings.currency} ${(invoice.subtotal || 0).toFixed(2)}</strong></td>
                 </tr>
-                ${invoice.totalDiscount && invoice.totalDiscount > 0 ? `
+                ${(invoice.totalDiscount || 0) > 0 ? `
                 <tr class="discount-text">
                   <td><strong>Total Discounts</strong></td>
-                  <td class="text-right"><strong>-${settings.currency} ${invoice.totalDiscount.toFixed(2)}</strong></td>
+                  <td class="text-right"><strong>-${settings.currency} ${(invoice.totalDiscount || 0).toFixed(2)}</strong></td>
                 </tr>
                 ` : ''}
                 <tr class="total-row">
                   <td><strong>TOTAL AMOUNT DUE</strong></td>
-                  <td class="text-right"><strong>${settings.currency} ${invoice.totalCharge.toFixed(2)}</strong></td>
+                  <td class="text-right"><strong>${settings.currency} ${(invoice.totalCharge || 0).toFixed(2)}</strong></td>
                 </tr>
               </tbody>
             </table>
@@ -214,7 +225,7 @@ export default function InvoicePreview({ onNavigate, invoiceId }: InvoicePreview
                 `}
                 <tr class="total-row">
                   <td><strong>TOTAL AMOUNT DUE</strong></td>
-                  <td class="text-right"><strong>${settings.currency} ${invoice.totalCharge.toFixed(2)}</strong></td>
+                  <td class="text-right"><strong>${settings.currency} ${(invoice.totalCharge || 0).toFixed(2)}</strong></td>
                 </tr>
               </tbody>
             </table>
@@ -400,7 +411,7 @@ export default function InvoicePreview({ onNavigate, invoiceId }: InvoicePreview
                         
                         <div className="flex justify-between text-lg font-bold bg-red-50 p-3 rounded">
                           <span>TOTAL AMOUNT DUE</span>
-                          <span>{settings?.currency} {invoice.totalCharge.toFixed(2)}</span>
+                          <span>{settings?.currency} {(invoice.totalCharge || 0).toFixed(2)}</span>
                         </div>
                       </div>
                     </div>
@@ -465,13 +476,13 @@ export default function InvoicePreview({ onNavigate, invoiceId }: InvoicePreview
                       <div className="space-y-2">
                         <div className="flex justify-between">
                           <span>Subtotal</span>
-                          <span>{settings?.currency} {invoice.subtotal.toFixed(2)}</span>
+                          <span>{settings?.currency} {(invoice.subtotal || 0).toFixed(2)}</span>
                         </div>
                         
-                        {invoice.totalDiscount > 0 && (
+                        {(invoice.totalDiscount || 0) > 0 && (
                           <div className="flex justify-between text-green-600">
                             <span>Total Discounts</span>
-                            <span>-{settings?.currency} {invoice.totalDiscount.toFixed(2)}</span>
+                            <span>-{settings?.currency} {(invoice.totalDiscount || 0).toFixed(2)}</span>
                           </div>
                         )}
                         
@@ -479,7 +490,7 @@ export default function InvoicePreview({ onNavigate, invoiceId }: InvoicePreview
                         
                         <div className="flex justify-between text-lg font-bold bg-red-50 p-3 rounded">
                           <span>TOTAL AMOUNT DUE</span>
-                          <span>{settings?.currency} {invoice.totalCharge.toFixed(2)}</span>
+                          <span>{settings?.currency} {(invoice.totalCharge || 0).toFixed(2)}</span>
                         </div>
                       </div>
                     </div>

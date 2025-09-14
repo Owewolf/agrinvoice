@@ -4,19 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { 
-  Plus, 
-  Eye, 
   FileText, 
-  Settings, 
   BarChart3, 
-  Receipt, 
   TrendingUp, 
-  TrendingDown, 
   AlertCircle,
   Users,
-  DollarSign,
-  Activity,
-  UserCircle
+  Activity
 } from 'lucide-react';
 import { authService } from '@/lib/auth';
 import { dashboardAnalytics, type DashboardStats } from '@/lib/dashboardAnalytics';
@@ -284,124 +277,44 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           </CardContent>
         </Card>
 
-        {/* Action Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {/* Create New Quote */}
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardContent className="p-6">
-              <div className="text-center space-y-4">
-                <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto">
-                  <Plus className="h-6 w-6 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Create New Quote</h3>
-                  <p className="text-sm text-gray-600 mt-1">Generate a new quote with real-time pricing</p>
-                </div>
-                <Button className="w-full" onClick={() => onNavigate('new-quote')}>Start New Quote</Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Document Management */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="text-center space-y-4">
-                <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto">
-                  <FileText className="h-6 w-6 text-purple-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Document Management</h3>
-                  <p className="text-sm text-gray-600 mt-1">View and manage quotes & invoices</p>
-                </div>
-                <div className="space-y-2">
-                  <Button variant="outline" size="sm" className="w-full" onClick={() => onNavigate('quote-history')}>
-                    Quote History
-                  </Button>
-                  <Button variant="outline" size="sm" className="w-full" onClick={() => onNavigate('invoice-history')}>
-                    Invoice History
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Top Customers */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                <div className="text-center">
-                  <div className="h-12 w-12 bg-orange-100 rounded-lg flex items-center justify-center mx-auto">
-                    <Users className="h-6 w-6 text-orange-600" />
-                  </div>
-                  <h3 className="font-semibold text-gray-900 mt-3">Top Customers</h3>
-                </div>
-                <div className="space-y-2">
-                  {stats.topCustomers.length > 0 ? (
-                    stats.topCustomers.map((customer, index) => (
-                      <div key={index} className="flex justify-between items-center text-sm">
-                        <span className="font-medium truncate">{customer.name}</span>
-                        <div className="text-right">
-                          <div className="font-semibold text-green-600">{formatCurrency(customer.revenue)}</div>
-                          <div className="text-xs text-gray-500">{customer.quoteCount} quotes</div>
-                        </div>
+        {/* Top Customers Analytics */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Users className="h-5 w-5 text-orange-600" />
+              <span>Top Customers</span>
+            </CardTitle>
+            <CardDescription>
+              Your highest value customers by revenue
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {stats.topCustomers.length > 0 ? (
+                stats.topCustomers.map((customer, index) => (
+                  <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-bold text-orange-600">#{index + 1}</span>
                       </div>
-                    ))
-                  ) : (
-                    <div className="text-sm text-gray-500 text-center py-2">
-                      No customer data yet
+                      <span className="font-medium">{customer.name}</span>
                     </div>
-                  )}
+                    <div className="text-right">
+                      <div className="font-semibold text-green-600">{formatCurrency(customer.revenue)}</div>
+                      <div className="text-sm text-gray-500">{customer.quoteCount} quotes</div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center text-gray-500 py-8">
+                  <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p>No customer data yet</p>
+                  <p className="text-sm">Create quotes to see your top customers</p>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Client Management */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="text-center space-y-4">
-                <div className="h-12 w-12 bg-indigo-100 rounded-lg flex items-center justify-center mx-auto">
-                  <UserCircle className="h-6 w-6 text-indigo-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Client Management</h3>
-                  <p className="text-sm text-gray-600 mt-1">Manage customers and track payments</p>
-                </div>
-                <div className="space-y-2">
-                  <Button variant="outline" size="sm" className="w-full" onClick={() => onNavigate('clients')}>
-                    View Clients
-                  </Button>
-                  <Button variant="outline" size="sm" className="w-full" onClick={() => onNavigate('clients')}>
-                    Outstanding Payments
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Products & Settings */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="text-center space-y-4">
-                <div className="h-12 w-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto">
-                  <Settings className="h-6 w-6 text-gray-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">System Management</h3>
-                  <p className="text-sm text-gray-600 mt-1">Manage products and settings</p>
-                </div>
-                <div className="space-y-2">
-                  <Button variant="outline" size="sm" className="w-full" onClick={() => onNavigate('products')}>
-                    Manage Products
-                  </Button>
-                  <Button variant="outline" size="sm" className="w-full" onClick={() => onNavigate('admin-settings')}>
-                    Admin Settings
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Performance Overview */}
         <Card>

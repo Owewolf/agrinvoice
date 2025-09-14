@@ -96,36 +96,56 @@ export default function createInvoicesRouter(pool) {
   router.get('/:id', async (req, res) => {
     try {
       const result = await pool.query(`
-        SELECT i.*, q.*, c.*, 
-        json_agg(json_build_object(
-          'product_id', qi.product_id,
-          'productId', qi.product_id,
-          'name', p.name,
-          'quantity', qi.quantity,
-          'speed', qi.speed,
-          'flowRate', qi.flow_rate,
-          'sprayWidth', qi.spray_width,
-          'appRate', qi.app_rate,
-          'calculation', qi.calculation
-        )) as items
+        SELECT 
+          i.id as invoice_id,
+          i.invoice_number,
+          i.quote_id,
+          i.issue_date,
+          i.due_date,
+          i.status,
+          i.banking,
+          i.subtotal,
+          i.total_discount,
+          i.total_charge,
+          i.created_at as invoice_created_at,
+          i.updated_at as invoice_updated_at,
+          q.quote_number,
+          q.client_id,
+          c.id as client_id,
+          c.name as client_name,
+          c.email as client_email,
+          c.phone as client_phone,
+          c.vat_number as client_vat_number,
+          c.address as client_address,
+          json_agg(json_build_object(
+            'product_id', qi.product_id,
+            'productId', qi.product_id,
+            'name', p.name,
+            'quantity', qi.quantity,
+            'speed', qi.speed,
+            'flowRate', qi.flow_rate,
+            'sprayWidth', qi.spray_width,
+            'appRate', qi.app_rate,
+            'calculation', qi.calculation
+          )) as items
         FROM invoices i
         JOIN quotes q ON i.quote_id = q.id
         JOIN clients c ON q.client_id = c.id
         LEFT JOIN quote_items qi ON q.id = qi.quote_id
         LEFT JOIN products p ON qi.product_id = p.id
         WHERE i.id = $1
-        GROUP BY i.id, q.id, c.id
+        GROUP BY i.id, i.invoice_number, i.quote_id, i.issue_date, i.due_date, i.status, i.banking, i.subtotal, i.total_discount, i.total_charge, i.created_at, i.updated_at, q.quote_number, q.client_id, c.id, c.name, c.email, c.phone, c.vat_number, c.address
       `, [req.params.id]);
 
       if (result.rows.length > 0) {
         const row = result.rows[0];
         const transformedInvoice = {
-          id: row.id,
+          id: row.invoice_id,
           invoiceNumber: row.invoice_number,
           quoteId: row.quote_id,
           quoteNumber: row.quote_number,
           clientId: row.client_id,
-          clientName: row.name,
+          clientName: row.client_name,
           issueDate: row.issue_date,
           dueDate: row.due_date,
           status: row.status,
@@ -134,16 +154,16 @@ export default function createInvoicesRouter(pool) {
           totalDiscount: parseFloat(row.total_discount || 0),
           totalCharge: parseFloat(row.total_charge || 0),
           client: {
-            id: row.id,
-            name: row.name,
-            email: row.email,
-            phone: row.phone,
-            vatNumber: row.vat_number,
-            address: row.address
+            id: row.client_id,
+            name: row.client_name,
+            email: row.client_email,
+            phone: row.client_phone,
+            vatNumber: row.client_vat_number,
+            address: row.client_address,
           },
-          items: row.items || [],
-          createdAt: row.created_at,
-          updatedAt: row.updated_at
+          items: row.items?.filter(item => item.product_id !== null) || [],
+          createdAt: row.invoice_created_at,
+          updatedAt: row.invoice_updated_at
         };
         res.json(transformedInvoice);
       } else {
@@ -163,7 +183,22 @@ export default function createInvoicesRouter(pool) {
         [status, req.params.id]
       );
       if (result.rows.length > 0) {
-        res.json(result.rows[0]);
+        const row = result.rows[0];
+        const transformedInvoice = {
+          id: row.id,
+          invoiceNumber: row.invoice_number,
+          quoteId: row.quote_id,
+          status: row.status,
+          subtotal: parseFloat(row.subtotal || 0),
+          totalDiscount: parseFloat(row.total_discount || 0),
+          totalCharge: parseFloat(row.total_charge || 0),
+          issueDate: row.issue_date,
+          dueDate: row.due_date,
+          banking: row.banking,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at
+        };
+        res.json(transformedInvoice);
       } else {
         res.status(404).json({ error: 'Invoice not found' });
       }
@@ -174,11 +209,11 @@ export default function createInvoicesRouter(pool) {
 
   // Update invoice
   router.put('/:id', async (req, res) => {
-    const { issueDate, dueDate, bankingDetails, status } = req.body;
+    const { issueDate, dueDate, banking, status } = req.body;
     try {
       const result = await pool.query(
         'UPDATE invoices SET issue_date = $1, due_date = $2, banking = $3, status = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *',
-        [issueDate, dueDate, JSON.stringify(bankingDetails), status, req.params.id]
+        [issueDate, dueDate, JSON.stringify(banking), status, req.params.id]
       );
       if (result.rows.length > 0) {
         res.json(result.rows[0]);

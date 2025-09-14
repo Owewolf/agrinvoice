@@ -169,7 +169,7 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
           const updatedSelection = { 
             ...sel, 
             selected, 
-            quantity: selected ? Math.max(sel.quantity || 4, 1) : 0  // Default to 4 hectares when selected
+            quantity: selected ? Math.max(sel.quantity || 0, 0) : 0  // Default to 0 when selected
           };
           
           console.log('📦 Product details:', {
@@ -435,14 +435,14 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
                                 {/* Quantity Input */}
                                 <div className="flex items-center space-x-3">
                                   <Label className="text-sm font-medium min-w-[80px]">
-                                    Area (ha):
+                                    {selection.product.category === 'travelling' ? 'Distance (km):' : 'Area (ha):'}
                                   </Label>
                                   <div className="flex items-center space-x-1">
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      onClick={() => handleQuantityChange(selection.product.id, Math.max(0, selection.quantity - 1))}
-                                      disabled={selection.quantity <= 1}
+                                      onClick={() => handleQuantityChange(selection.product.id, Math.max(0, selection.quantity - (selection.product.category === 'travelling' ? 0.1 : 1)))}
+                                      disabled={selection.quantity <= 0}
                                     >
                                       <Minus className="h-3 w-3" />
                                     </Button>
@@ -457,7 +457,7 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      onClick={() => handleQuantityChange(selection.product.id, selection.quantity + 1)}
+                                      onClick={() => handleQuantityChange(selection.product.id, selection.quantity + (selection.product.category === 'travelling' ? 0.1 : 1))}
                                     >
                                       <Plus className="h-3 w-3" />
                                     </Button>
@@ -509,7 +509,9 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
                                 {selection.calculation && (
                                   <div className="bg-gray-50 p-3 rounded text-sm">
                                     <div className="grid grid-cols-2 gap-2">
-                                      <div>Applied Rate: R{selection.calculation.appliedRate}/ha</div>
+                                      <div>Applied Rate: R{selection.calculation.appliedRate}{
+                                        selection.product.category === 'travelling' ? '/km' : '/ha'
+                                      }</div>
                                       <div>Subtotal: R{selection.calculation.subtotal}</div>
                                       {selection.calculation.discountAmount > 0 && (
                                         <>
@@ -519,7 +521,12 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
                                       )}
                                       {selection.calculation.appRate && (
                                         <div className="col-span-2">
-                                          Application Rate: {selection.calculation.appRate} {selection.product.unit}
+                                          Application Rate: {selection.calculation.appRate} {
+                                            selection.product.category === 'spraying' ? 'L/ha' :
+                                            selection.product.category === 'granular' ? 'kg/ha' :
+                                            selection.product.category === 'travelling' ? 'km' :
+                                            selection.product.unit
+                                          }
                                         </div>
                                       )}
                                     </div>

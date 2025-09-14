@@ -1,24 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { formatCurrency, getClientInitials } from '@/lib/clientUtils';
-import { Client } from '@/types/client';
+import { formatCurrency } from '@/lib/clientUtils';
+import { Client } from '@/types/api';
 import { clientStorageService } from '@/lib/clientStorage';
 import { storageService } from '@/lib/storage';
 import { invoiceStorageService } from '@/lib/invoiceStorage';
-import { Quote } from '@/types';
-import { Invoice } from '@/types';
+import { Quote, Invoice } from '@/types/api';
 import { Calendar, Phone, Mail, MapPin, FileText, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface ClientDetailsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  client: Client;
+  client?: Client;
   onNavigate: (page: string, params?: Record<string, unknown>) => void;
 }
 
@@ -32,24 +31,39 @@ export function ClientDetailsModal({ open, onOpenChange, client, onNavigate }: C
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
 
+  const loadClientData = useCallback(async () => {
+    if (!client) return;
+    
+    // Update stats from client data
+    setClientStats({
+      totalQuotes: client.totalQuotes || 0,
+      totalInvoices: client.totalInvoices || 0,
+      outstandingAmount: client.outstandingAmount || 0,
+      paidAmount: 0 // We'll calculate this from invoices if needed
+    });
+
+    // Load quotes and invoices from storage (keeping this for detailed views)
+    try {
+      const allQuotes = await storageService.getQuotes();
+      const clientQuotes = allQuotes.filter(q => q.clientId === client.id);
+      setQuotes(clientQuotes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+
+      const allInvoices = await invoiceStorageService.getInvoices();
+      const clientInvoices = allInvoices.filter(i => i.clientId === client.id);
+      setInvoices(clientInvoices.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    } catch (error) {
+      console.error('Failed to load client data:', error);
+    }
+  }, [client]);
+
   useEffect(() => {
     if (client) {
       loadClientData();
     }
-  }, [client]);
-
-  const loadClientData = () => {
-    const stats = clientStorageService.getClientStats(client.id);
-    setClientStats(stats);
-
-    const clientQuotes = storageService.getQuotes().filter(q => q.clientId === client.id);
-    const clientInvoices = invoiceStorageService.getInvoices().filter(i => i.clientId === client.id);
-
-    setQuotes(clientQuotes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-    setInvoices(clientInvoices.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-  };
+  }, [client, loadClientData]);
 
   const handleCreateQuote = () => {
+    if (!client) return;
     onOpenChange(false);
     onNavigate('new-quote', { clientId: client.id });
   };
@@ -79,6 +93,16 @@ export function ClientDetailsModal({ open, onOpenChange, client, onNavigate }: C
     }
   };
 
+  if (!client) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <div className="p-4 text-center">Loading client information...</div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh]">
@@ -96,13 +120,13 @@ export function ClientDetailsModal({ open, onOpenChange, client, onNavigate }: C
               <CardTitle className="flex items-center gap-3">
                 <Avatar className="h-12 w-12">
                   <AvatarFallback className="text-lg">
-                    {getClientInitials(client)}
+                    {client.name.split(' ').map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2)}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <div className="text-xl font-semibold">{client.fullName}</div>
-                  {client.companyName && (
-                    <div className="text-sm text-muted-foreground">{client.companyName}</div>
+                  <div className="text-xl font-semibold">{client.name}</div>
+                  {client.vatNumber && (
+                    <div className="text-sm text-muted-foreground">{client.vatNumber}</div>
                   )}
                 </div>
               </CardTitle>
@@ -112,26 +136,26 @@ export function ClientDetailsModal({ open, onOpenChange, client, onNavigate }: C
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4 text-muted-foreground" />
-                    <span>{client.phoneNumber}</span>
+                    <span>{client.phone}</span>
                   </div>
-                  {client.emailAddress && (
+                  {client.email && (
                     <div className="flex items-center gap-2">
                       <Mail className="w-4 h-4 text-muted-foreground" />
-                      <span>{client.emailAddress}</span>
+                      <span>{client.email}</span>
                     </div>
                   )}
-                  {client.physicalAddress && (
+                  {client.address && typeof client.address === 'object' && (
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-muted-foreground" />
-                      <span>{client.physicalAddress}</span>
+                      <span>{`${client.address.street || ''} ${client.address.city || ''} ${client.address.postalCode || ''}`.trim()}</span>
                     </div>
                   )}
                 </div>
                 <div className="space-y-3">
-                  {client.vatDetails && (
+                  {client.vatNumber && (
                     <div>
                       <span className="text-sm text-muted-foreground">VAT Number:</span>
-                      <div>{client.vatDetails}</div>
+                      <div>{client.vatNumber}</div>
                     </div>
                   )}
                   <div>
@@ -260,7 +284,7 @@ export function ClientDetailsModal({ open, onOpenChange, client, onNavigate }: C
                                 {invoice.invoiceNumber}
                               </div>
                               <div className="text-sm text-muted-foreground">
-                                {format(new Date(invoice.issueDate), 'MMM d, yyyy')}
+                                Due: {format(new Date(invoice.dueDate), 'MMM d, yyyy')}
                               </div>
                             </div>
                           </div>
