@@ -192,7 +192,7 @@ AgriHover is a comprehensive professional drone services invoice and quote manag
 
 #### Settings Table
 - **id**: UUID primary key
-- **currency**: Default currency (ZAR, USD, etc.)
+- **currency**: Default currency (R, USD, etc.)
 - **language**: Default language (en, af, etc.)
 - **branding**: JSONB field with company branding information
 - **payments**: JSONB field with payment/banking details

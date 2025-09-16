@@ -16,6 +16,7 @@ import InvoiceHistory from '@/pages/InvoiceHistory';
 import AdminSettings from '@/pages/AdminSettings';
 import Products from '@/pages/Products';
 import { Clients } from '@/pages/Clients';
+import ServiceManagement from '@/pages/ServiceManagement';
 import NotFound from '@/pages/NotFound';
 
 const queryClient = new QueryClient();
@@ -77,6 +78,7 @@ function AppContent() {
         <Route path="/admin-settings" element={<AuthWrapper><AdminSettings onNavigate={handleNavigate} /></AuthWrapper>} />
         <Route path="/products" element={<AuthWrapper><Products onNavigate={handleNavigate} /></AuthWrapper>} />
         <Route path="/clients" element={<AuthWrapper><Clients onNavigate={handleNavigate} /></AuthWrapper>} />
+        <Route path="/service-management" element={<AuthWrapper><ServiceManagement onNavigate={handleNavigate} /></AuthWrapper>} />
         <Route path="/" element={<Navigate to="/login" />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

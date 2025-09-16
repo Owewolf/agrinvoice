@@ -369,11 +369,12 @@ export default function createQuotesRouter(pool) {
           qi.calculation,
           p.name as product_name,
           p.description as product_description,
-          p.category,
+          s.name as category,
           p.sku,
           p.unit
         FROM quote_items qi
         JOIN products p ON qi.product_id = p.id
+        LEFT JOIN services s ON p.service_id = s.id
         WHERE qi.quote_id = $1
         ORDER BY qi.created_at
       `, [quote.id]);

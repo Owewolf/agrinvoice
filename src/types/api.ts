@@ -43,6 +43,18 @@ export interface Client {
 }
 
 // Product types
+export interface Service {
+    id: string;
+    name: string;
+    description?: string;
+    unit: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// Legacy category interface - kept for backward compatibility
+export interface Category extends Service {}
+
 export type ProductCategory = 'spraying' | 'granular' | 'travelling' | 'imaging' | 'accommodation';
 export type PricingType = 'tiered' | 'flat' | 'per_km';
 
@@ -59,13 +71,17 @@ export interface Product {
     id: string;
     name: string;
     description?: string;
-    category: ProductCategory;
+    category: ProductCategory | string; // Support both old string format and new Category name
+    categoryId?: string; // New field for category ID
+    serviceId?: string; // New field for service ID
+    serviceName?: string; // Service name for display
+    serviceUnit?: string; // Unit from the service
     pricingType: PricingType;
     baseRate: number;
     discountThreshold?: number;
     discountRate?: number;
     sku: string;
-    unit: string; // Add unit field
+    unit: string; // Product's own unit field
     tiers?: ProductTier[];
     createdAt: string;
     updatedAt: string;

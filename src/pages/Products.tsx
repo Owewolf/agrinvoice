@@ -11,10 +11,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Plus, Edit, Trash2, Settings, X } from 'lucide-react';
-import { Product, ProductTier, ProductCategory, PricingType } from '@/types/api';
+import { Product, ProductTier, ProductCategory, PricingType, Category } from '@/types/api';
 import { productStorageService } from '@/lib/productStorage';
 import { authService } from '@/lib/auth';
-import { PRODUCT_CATEGORIES, PRICING_TYPES, getUnitForCategory, createDefaultProduct } from '@/lib/products';
+import { PRODUCT_CATEGORIES, PRICING_TYPES, getUnitForCategory, createDefaultProduct, getProductCategories } from '@/lib/products';
+import { apiService } from '@/lib/api';
 
 interface ProductsProps {
   onNavigate: (page: string) => void;
@@ -22,15 +23,26 @@ interface ProductsProps {
 
 export default function Products({ onNavigate }: ProductsProps) {
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'all'>('all');
+  const [selectedService, setSelectedService] = useState<string>('all');
 
   useEffect(() => {
     loadProducts();
+    loadCategories();
     // Load current user
     const currentUser = authService.getCurrentUser();
   }, []);
+
+  const loadCategories = async () => {
+    try {
+      const loadedCategories = await getProductCategories();
+      setCategories(loadedCategories);
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+    }
+  };
 
   const loadProducts = async () => {
     try {
@@ -78,14 +90,29 @@ export default function Products({ onNavigate }: ProductsProps) {
     setIsDialogOpen(true);
   };
 
-  const filteredProducts = selectedCategory === 'all' 
+  const filteredProducts = selectedService === 'all' 
     ? products 
-    : products.filter(p => p.category === selectedCategory);
+    : products.filter(p => {
+        // Handle both old string-based services and new service IDs
+        if (typeof p.category === 'string') {
+          // For old string categories, match against category name
+          const selectedCat = categories.find(c => c.id === selectedService);
+          return selectedCat && p.category === selectedCat.name.toLowerCase();
+        } else {
+          // For new category IDs, direct match
+          return p.category === selectedService;
+        }
+      });
 
-  const productsByCategory = PRODUCT_CATEGORIES.reduce((acc, category) => {
-    acc[category.value] = products.filter(p => p.category === category.value);
+  const productsByCategory = categories.reduce((acc, category) => {
+    acc[category.name] = products.filter(p => {
+      // Handle both old string-based categories and new category IDs
+      return typeof p.category === 'string' 
+        ? p.category === category.name.toLowerCase()
+        : p.category === category.id;
+    });
     return acc;
-  }, {} as Record<ProductCategory, Product[]>);
+  }, {} as Record<string, Product[]>);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -117,23 +144,23 @@ export default function Products({ onNavigate }: ProductsProps) {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs value={selectedCategory} onValueChange={(value) => setSelectedCategory(value as ProductCategory | 'all')}>
+        <Tabs value={selectedService} onValueChange={(value) => setSelectedService(value)}>
           <TabsList className="mb-6">
             <TabsTrigger value="all">All Products ({products.length})</TabsTrigger>
-            {PRODUCT_CATEGORIES.map(category => (
-              <TabsTrigger key={category.value} value={category.value}>
-                {category.label} ({productsByCategory[category.value]?.length || 0})
+            {categories.map(category => (
+              <TabsTrigger key={category.id} value={category.id}>
+                {category.name} ({productsByCategory[category.name]?.length || 0})
               </TabsTrigger>
             ))}
           </TabsList>
 
-          <TabsContent value={selectedCategory}>
+          <TabsContent value={selectedService}>
             <Card>
               <CardHeader>
                 <CardTitle>
-                  {selectedCategory === 'all' 
+                  {selectedService === 'all' 
                     ? 'All Products' 
-                    : PRODUCT_CATEGORIES.find(c => c.value === selectedCategory)?.label
+                    : categories.find(c => c.id === selectedService)?.name || 'Products'
                   }
                 </CardTitle>
                 <CardDescription>
@@ -173,7 +200,22 @@ export default function Products({ onNavigate }: ProductsProps) {
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">
-                              {PRODUCT_CATEGORIES.find(c => c.value === product.category)?.label}
+                              {(() => {
+                                // Handle both old string-based categories and new category IDs
+                                if (typeof product.category === 'string') {
+                                  // Try to find by name first
+                                  const categoryByName = categories.find(c => c.name.toLowerCase() === product.category);
+                                  if (categoryByName) return categoryByName.name;
+                                  
+                                  // Fallback to old hardcoded categories
+                                  const oldCategory = PRODUCT_CATEGORIES.find(c => c.value === product.category);
+                                  return oldCategory?.label || product.category;
+                                }
+                                
+                                // Find by ID for new category system
+                                const categoryById = categories.find(c => c.id === product.category);
+                                return categoryById?.name || 'Unknown';
+                              })()}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -228,6 +270,7 @@ export default function Products({ onNavigate }: ProductsProps) {
       {/* Product Form Dialog */}
       <ProductFormDialog
         product={editingProduct}
+        categories={categories}
         isOpen={isDialogOpen}
         onClose={() => {
           setIsDialogOpen(false);
@@ -241,14 +284,20 @@ export default function Products({ onNavigate }: ProductsProps) {
 
 interface ProductFormDialogProps {
   product: Product | null;
+  categories: Category[];
   isOpen: boolean;
   onClose: () => void;
   onSave: (product: Product) => void;
 }
 
-function ProductFormDialog({ product, isOpen, onClose, onSave }: ProductFormDialogProps) {
+function ProductFormDialog({ product, categories, isOpen, onClose, onSave }: ProductFormDialogProps) {
   const [formData, setFormData] = useState<Partial<Product>>({});
   const [tiers, setTiers] = useState<ProductTier[]>([]);
+  const [localCategories, setLocalCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    setLocalCategories(categories);
+  }, [categories]);
 
   useEffect(() => {
     if (product) {
@@ -287,7 +336,11 @@ function ProductFormDialog({ product, isOpen, onClose, onSave }: ProductFormDial
       discountThreshold: formData.discountThreshold,
       discountRate: formData.discountRate,
       sku: '', // Let backend generate the SKU
-      unit: formData.unit || getUnitForCategory(formData.category!, formData.pricingType!),
+      unit: formData.unit || (() => {
+        // Find the selected category and use its unit
+        const selectedCategory = localCategories.find(c => c.id === formData.category);
+        return selectedCategory?.unit || 'unit';
+      })(),
       tiers: formData.pricingType === 'tiered' ? tiers.map(tier => ({
         threshold: tier.threshold,
         rate: tier.rate
@@ -362,41 +415,48 @@ function ProductFormDialog({ product, isOpen, onClose, onSave }: ProductFormDial
             </div>
           </div>
 
-          {/* Category and Pricing Type */}
+          {/* Service and Pricing Type */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="category">Category *</Label>
+              <Label htmlFor="category">Service *</Label>
               <Select
                 value={formData.category}
-                onValueChange={(value: ProductCategory) => {
-                  const unit = getUnitForCategory(value, value === 'travelling' ? 'per_km' : 'tiered');
+                onValueChange={(value: string) => {
+                  const selectedCategory = localCategories.find(c => c.id === value);
+                  const unit = selectedCategory?.unit || 'unit';
+                  
                   setFormData({
                     ...formData,
                     category: value,
-                    pricingType: value === 'travelling' ? 'per_km' : 'tiered',
-                    baseRate: value === 'spraying' ? 200 : value === 'granular' ? 250 : 15,
+                    pricingType: selectedCategory?.name.toLowerCase().includes('travel') ? 'per_km' : 'tiered',
+                    baseRate: selectedCategory?.name.toLowerCase().includes('spray') ? 200 : 
+                              selectedCategory?.name.toLowerCase().includes('granular') ? 250 : 15,
                     unit
                   });
-                  // Don't overwrite existing tiers when category changes
-                  // Only set default tiers if there are no tiers currently
-                  if (tiers.length === 0 && (value === 'spraying' || value === 'granular')) {
+                  
+                  // Set default tiers for spraying/granular categories
+                  if (tiers.length === 0 && 
+                      (selectedCategory?.name.toLowerCase().includes('spray') || 
+                       selectedCategory?.name.toLowerCase().includes('granular'))) {
                     setTiers([
                       { productId: '', threshold: 40, rate: 200 },
                       { productId: '', threshold: 80, rate: 300 },
                       { productId: '', threshold: 160, rate: 400 }
                     ]);
-                  } else if (value === 'travelling' || value === 'imaging' || value === 'accommodation') {
+                  } else if (selectedCategory?.name.toLowerCase().includes('travel') || 
+                           selectedCategory?.name.toLowerCase().includes('imaging') || 
+                           selectedCategory?.name.toLowerCase().includes('accommodation')) {
                     setTiers([]);
                   }
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
+                  <SelectValue placeholder="Select service" />
                 </SelectTrigger>
                 <SelectContent>
-                  {PRODUCT_CATEGORIES.map(category => (
-                    <SelectItem key={category.value} value={category.value}>
-                      {category.label}
+                  {localCategories.map(category => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

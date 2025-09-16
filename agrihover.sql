@@ -1,6 +1,17 @@
 -- AgriHover Database Schema
--- Last updated: 2025-09-07
+-- Last updated: 2025-09-16
 -- Complete production schema with all features and relationships
+-- All migrations have been incorporated into this file
+--
+-- MIGRATION HISTORY INCORPORATED:
+-- - add_categories_table.sql: Added services table with UUID references 
+-- - add_unit_to_categories.sql: Added unit field to services table
+-- - add_website_to_branding.sql: Added website field to branding JSON
+-- - rename_categories_to_services.sql: Renamed categories to services table
+-- - Currency changed from 'ZAR' to 'R' throughout application
+--
+-- This file represents the complete, current database schema.
+-- No additional migration files are needed.
 
 -- Enable UUID generation and password hashing
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -19,7 +30,7 @@ CREATE TABLE users (
 -- Settings Table
 CREATE TABLE settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    currency VARCHAR(10) DEFAULT 'ZAR',
+    currency VARCHAR(10) DEFAULT 'R',
     language VARCHAR(10) DEFAULT 'en',
     branding JSONB,
     payments JSONB,
@@ -41,12 +52,22 @@ CREATE TABLE clients (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Services Table (formerly categories)
+CREATE TABLE services (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL UNIQUE,
+    description TEXT,
+    unit VARCHAR(50) NOT NULL DEFAULT 'unit',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Products Table
 CREATE TABLE products (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    category VARCHAR(100) CHECK (category IN ('spraying', 'granular', 'travelling', 'imaging', 'accommodation')),
+    service_id UUID REFERENCES services(id) NOT NULL,
     pricing_type VARCHAR(50) CHECK (pricing_type IN ('tiered', 'flat', 'per_km')),
     base_rate NUMERIC(10, 2),
     discount_threshold NUMERIC(8, 2),
@@ -137,6 +158,7 @@ $$ language 'plpgsql';
 -- Triggers for automatic timestamp updates
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_clients_updated_at BEFORE UPDATE ON clients FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_services_updated_at BEFORE UPDATE ON services FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_product_tiers_updated_at BEFORE UPDATE ON product_tiers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_quotes_updated_at BEFORE UPDATE ON quotes FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -150,9 +172,10 @@ CREATE INDEX idx_clients_name ON clients(name);
 CREATE INDEX idx_clients_email ON clients(email);
 CREATE INDEX idx_clients_phone ON clients(phone);
 CREATE INDEX idx_clients_created_by ON clients(created_by);
+CREATE INDEX idx_services_name ON services(name);
 CREATE INDEX idx_products_name ON products(name);
 CREATE INDEX idx_products_sku ON products(sku);
-CREATE INDEX idx_products_category ON products(category);
+CREATE INDEX idx_products_service_id ON products(service_id);
 CREATE INDEX idx_products_pricing_type ON products(pricing_type);
 CREATE INDEX idx_products_is_active ON products(is_active);
 CREATE INDEX idx_product_tiers_product_id ON product_tiers(product_id);
@@ -218,10 +241,20 @@ COMMENT ON COLUMN invoices.banking IS 'JSON: banking details copied from setting
 
 -- Default application settings
 INSERT INTO settings (currency, language, branding, payments) VALUES 
-('ZAR', 'en', 
+('R', 'en', 
  '{"companyName": "AgriHover Drone Services", "website": "https://www.agrihover.com", "contactInfo": {"email": "info@agrihover.com", "phone": "+27 11 123 4567", "address": "123 Agriculture Street, Johannesburg, 2000"}}',
  '{"bankName": "First National Bank", "accountName": "AgriHover Drone Services", "accountNumber": "12345678901", "branchCode": "250655"}'
 ) ON CONFLICT DO NOTHING;
+
+-- Default services (migrated from categories)
+INSERT INTO services (name, description, unit) VALUES 
+('Spraying', 'Drone spraying services with tiered pricing', 'liters/ha'),
+('Granular', 'Granular application with tiered pricing', 'kg/ha'),
+('Travelling', 'Travel charges per kilometer', 'km'),
+('Imaging', 'Aerial imaging services', 'hectares'),
+('Accommodation', 'Accommodation services', 'nights'),
+('Tank Hire', 'Tank hire services', 'days')
+ON CONFLICT (name) DO NOTHING;
 
 -- Migration: Add website field to existing branding data (for databases created before this update)
 -- This ensures compatibility with existing installations

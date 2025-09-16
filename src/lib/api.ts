@@ -6,6 +6,8 @@ import {
   UserRegistration,
   Client,
   Product,
+  Service,
+  Category,
   Quote,
   Invoice,
   CreateInvoiceData,
@@ -195,6 +197,58 @@ export const apiService = {
 
   updateSettings: async (settingsData: Partial<Settings>) => {
     const response = await api.put<Settings>('/settings', settingsData);
+    return response.data;
+  },
+
+  // Services
+  getServices: async () => {
+    const response = await api.get('/services');
+    return response.data;
+  },
+
+  getService: async (id: string) => {
+    const response = await api.get(`/services/${id}`);
+    return response.data;
+  },
+
+  createService: async (data: { name: string; description?: string; unit?: string }) => {
+    const response = await api.post('/services', data);
+    return response.data;
+  },
+
+  updateService: async (id: string, data: { name: string; description?: string; unit?: string }) => {
+    const response = await api.put(`/services/${id}`, data);
+    return response.data;
+  },
+
+  deleteService: async (id: string) => {
+    const response = await api.delete(`/services/${id}`);
+    return response.data;
+  },
+
+  // Categories (backward compatibility - routes to services)
+  getCategories: async () => {
+    const response = await api.get('/categories'); // This routes to services in backend
+    return response.data;
+  },
+
+  getCategory: async (id: string) => {
+    const response = await api.get(`/categories/${id}`);
+    return response.data;
+  },
+
+  createCategory: async (data: { name: string; description?: string; unit?: string }) => {
+    const response = await api.post('/categories', data);
+    return response.data;
+  },
+
+  updateCategory: async (id: string, data: { name: string; description?: string; unit?: string }) => {
+    const response = await api.put(`/categories/${id}`, data);
+    return response.data;
+  },
+
+  deleteCategory: async (id: string) => {
+    const response = await api.delete(`/categories/${id}`);
     return response.data;
   },
 };

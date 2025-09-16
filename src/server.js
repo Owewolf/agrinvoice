@@ -72,6 +72,7 @@ const { default: createQuotesRouter } = await import('./routes/quotes.js');
 const { default: createInvoicesRouter } = await import('./routes/invoices.js');
 const { default: createAuthRouter } = await import('./routes/auth.js');
 const { default: createSettingsRouter } = await import('./routes/settings.js');
+const { default: createServicesRouter } = await import('./routes/services.js');
 
 // Initialize routers
 const clientsRouter = createClientsRouter(pool);
@@ -80,6 +81,7 @@ const quotesRouter = createQuotesRouter(pool);
 const invoicesRouter = createInvoicesRouter(pool);
 const authRouter = createAuthRouter(pool);
 const settingsRouter = createSettingsRouter(pool);
+const servicesRouter = createServicesRouter(pool);
 
 import { authenticateToken } from './middleware/auth.js';
 
@@ -92,6 +94,8 @@ app.use('/api/invoices', authenticateToken, invoicesRouter);
 app.use('/api/quotes', authenticateToken, quotesRouter);
 app.use('/api/products', authenticateToken, productsRouter);
 app.use('/api/clients', authenticateToken, clientsRouter);
+app.use('/api/services', authenticateToken, servicesRouter);
+app.use('/api/categories', authenticateToken, servicesRouter); // Keep backward compatibility
 
 app.get('/', (req, res) => {
   res.send('AgriHover backend is running!');

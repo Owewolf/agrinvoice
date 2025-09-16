@@ -60,7 +60,7 @@ class DashboardAnalyticsService {
       console.error('Failed to get settings for analytics:', error);
       // Return a default settings object
       return {
-        currency: 'ZAR',
+        currency: 'R',
         language: 'en',
         branding: {
           companyName: 'AgriHover',

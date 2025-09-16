@@ -11,9 +11,9 @@ import { ArrowLeft, Calculator, Save, Package, Minus, Plus } from 'lucide-react'
 import { authService } from '@/lib/auth';
 import { storageService } from '@/lib/storage';
 import { productStorageService } from '@/lib/productStorage';
-import { calculateProductCost, PRODUCT_CATEGORIES } from '@/lib/products';
+import { calculateProductCost } from '@/lib/products';
 import { QuoteProduct } from '@/types';
-import { Product, Quote, QuoteItem } from '@/types/api';
+import { Product, Quote, QuoteItem, Category, Service } from '@/types/api';
 import { ClientDropdown } from '@/components/clients/ClientDropdown';
 import { clientStorageService } from '@/lib/clientStorage';
 import { apiService } from '@/lib/api';
@@ -46,6 +46,8 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
   const [clientName, setClientName] = useState('');
   const [clientContact, setClientContact] = useState('');
   const [productSelections, setProductSelections] = useState<ProductSelection[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]); // Keep for backward compatibility
   const [quoteCalculation, setQuoteCalculation] = useState({
     subtotal: 0,
     totalDiscount: 0,
@@ -58,7 +60,7 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
       let totalDiscount = 0;
 
       productSelections.forEach(selection => {
-        if (selection.selected && selection.calculation) {
+        if (selection.selected && selection.calculation && selection.quantity > 0) {
           subtotal += selection.calculation.subtotal;
           totalDiscount += selection.calculation.discountAmount;
         }
@@ -72,7 +74,7 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
   }, [productSelections]);
 
   useEffect(() => {
-    loadProducts();
+    loadData();
     // Load current user
     const currentUser = authService.getCurrentUser();
   }, []);
@@ -130,15 +132,25 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
     }
   }, [quoteId, productSelections.length]);
 
-  const loadProducts = async () => {
+  const loadData = async () => {
     try {
-      const products = await productStorageService.getActiveProducts();
-      console.log('📦 Loaded products:', products.length);
-      products.forEach(product => {
+      // Load services and products in parallel
+      const [servicesData, productsData] = await Promise.all([
+        apiService.getServices(),
+        apiService.getProducts() // Use API service instead of local storage
+      ]);
+      
+      setServices(servicesData);
+      setCategories(servicesData); // Set categories as services for backward compatibility
+      console.log('📦 Loaded services:', servicesData.length);
+      console.log('📦 Loaded products:', productsData.length);
+      
+      productsData.forEach(product => {
         console.log('Product:', {
           id: product.id,
           name: product.name,
           category: product.category,
+          categoryId: product.categoryId,
           pricingType: product.pricingType,
           baseRate: product.baseRate,
           discountThreshold: product.discountThreshold,
@@ -147,17 +159,35 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
         });
       });
       
-      const selections = products.map(product => ({
+      const selections = productsData.map(product => ({
         product,
         selected: false,
         quantity: 0,
-        speed: product.category === 'spraying' || product.category === 'granular' ? 10 : undefined,
-        flowRate: product.category === 'spraying' ? 15 : product.category === 'granular' ? 20 : undefined,
-        sprayWidth: product.category === 'spraying' || product.category === 'granular' ? 3 : undefined,
+        speed: product.pricingType === 'tiered' && (product.category === 'spraying' || product.category === 'granular') ? 10 : undefined,
+        flowRate: product.pricingType === 'tiered' && product.category === 'spraying' ? 15 : 
+                 product.pricingType === 'tiered' && product.category === 'granular' ? 20 : undefined,
+        sprayWidth: product.pricingType === 'tiered' && (product.category === 'spraying' || product.category === 'granular') ? 3 : undefined,
       }));
       setProductSelections(selections);
     } catch (error) {
-      console.error('Error loading products:', error);
+      console.error('Error loading data:', error);
+      // Fallback to local storage
+      try {
+        const products = await productStorageService.getActiveProducts();
+        console.log('📦 Fallback: Loaded products from local storage:', products.length);
+        const selections = products.map(product => ({
+          product,
+          selected: false,
+          quantity: 0,
+          speed: product.category === 'spraying' || product.category === 'granular' ? 10 : undefined,
+          flowRate: product.category === 'spraying' ? 15 : product.category === 'granular' ? 20 : undefined,
+          sprayWidth: product.category === 'spraying' || product.category === 'granular' ? 3 : undefined,
+        }));
+        setProductSelections(selections);
+      } catch (fallbackError) {
+        console.error('Error loading from fallback:', fallbackError);
+        toast.error('Failed to load products. Please try again.');
+      }
     }
   };
 
@@ -271,9 +301,9 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
       return;
     }
 
-    const selectedProducts = productSelections.filter(sel => sel.selected);
+    const selectedProducts = productSelections.filter(sel => sel.selected && sel.quantity > 0);
     if (selectedProducts.length === 0) {
-      toast.error('Please add at least one product to the quote');
+      toast.error('Please add at least one product with quantity greater than 0 to the quote');
       return;
     }
 
@@ -327,19 +357,25 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
     }
   };
 
-  const productsByCategory = PRODUCT_CATEGORIES.reduce((acc, category) => {
-    const categoryProducts = productSelections.filter(sel => sel.product.category === category.value);
+  // Group products by their dynamic categories
+  const productsByCategory = categories.reduce((acc, category) => {
+    const categoryProducts = productSelections.filter(sel => {
+      // Handle both old string categories and new UUID categories
+      return sel.product.category === category.name || 
+             sel.product.categoryId === category.id ||
+             sel.product.category === category.id;
+    });
     if (categoryProducts.length > 0) {
-      acc[category.value] = {
+      acc[category.id] = {
         category: category,
         products: categoryProducts
       };
     }
     return acc;
-  }, {} as Record<string, { category: typeof PRODUCT_CATEGORIES[0]; products: ProductSelection[] }>);
+  }, {} as Record<string, { category: Category; products: ProductSelection[] }>);
 
-  const selectedProductsCount = productSelections.filter(sel => sel.selected).length;
-  const hasCalculations = productSelections.some(sel => sel.selected && sel.calculation);
+  const selectedProductsCount = productSelections.filter(sel => sel.selected && sel.quantity > 0).length;
+  const hasCalculations = productSelections.some(sel => sel.selected && sel.calculation && sel.quantity > 0);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -395,7 +431,7 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
                     <AccordionItem key={categoryKey} value={categoryKey} className="border rounded-lg">
                       <AccordionTrigger className="px-4 hover:no-underline">
                         <div className="flex items-center space-x-3">
-                          <Badge variant="outline">{category.label}</Badge>
+                          <Badge variant="outline">{category.name}</Badge>
                           <span className="text-sm text-gray-500">
                             {products.filter(p => p.selected).length} of {products.length} selected
                           </span>
@@ -435,20 +471,26 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
                                 {/* Quantity Input */}
                                 <div className="flex items-center space-x-3">
                                   <Label className="text-sm font-medium min-w-[80px]">
-                                    {selection.product.category === 'travelling' ? 'Distance (km):' : 'Area (ha):'}
+                                    {selection.product.category === 'travelling' ? 'Distance (km):' :
+                                     selection.product.category === 'accommodation' ? 'Nights:' :
+                                     selection.product.category === 'imaging' ? 'Area (ha):' :
+                                     selection.product.serviceUnit === 'nights' ? 'Nights:' :
+                                     selection.product.serviceUnit === 'km' ? 'Distance (km):' :
+                                     selection.product.serviceUnit === 'hectares' ? 'Area (ha):' :
+                                     'Area (ha):'}
                                   </Label>
                                   <div className="flex items-center space-x-1">
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      onClick={() => handleQuantityChange(selection.product.id, Math.max(0, selection.quantity - (selection.product.category === 'travelling' ? 0.1 : 1)))}
+                                      onClick={() => handleQuantityChange(selection.product.id, Math.max(0, selection.quantity - (selection.product.category === 'travelling' ? 0.1 : selection.product.category === 'accommodation' ? 1 : 1)))}
                                       disabled={selection.quantity <= 0}
                                     >
                                       <Minus className="h-3 w-3" />
                                     </Button>
                                     <Input
                                       type="number"
-                                      step="0.1"
+                                      step={selection.product.category === 'travelling' ? '0.1' : selection.product.category === 'accommodation' ? '1' : '0.1'}
                                       min="0"
                                       value={selection.quantity}
                                       onChange={(e) => handleQuantityChange(selection.product.id, parseFloat(e.target.value) || 0)}
@@ -457,15 +499,15 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      onClick={() => handleQuantityChange(selection.product.id, selection.quantity + (selection.product.category === 'travelling' ? 0.1 : 1))}
+                                      onClick={() => handleQuantityChange(selection.product.id, selection.quantity + (selection.product.category === 'travelling' ? 0.1 : selection.product.category === 'accommodation' ? 1 : 1))}
                                     >
                                       <Plus className="h-3 w-3" />
                                     </Button>
                                   </div>
                                 </div>
 
-                                {/* Additional Parameters for Spraying/Granular */}
-                                {(selection.product.category === 'spraying' || selection.product.category === 'granular') && (
+                                {/* Additional Parameters for Tiered Spraying/Granular */}
+                                {selection.product.pricingType === 'tiered' && (selection.product.category === 'spraying' || selection.product.category === 'granular') && (
                                   <div className="grid grid-cols-3 gap-3">
                                     <div className="space-y-1">
                                       <Label className="text-xs">Speed (m/s)</Label>
@@ -510,7 +552,13 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
                                   <div className="bg-gray-50 p-3 rounded text-sm">
                                     <div className="grid grid-cols-2 gap-2">
                                       <div>Applied Rate: R{selection.calculation.appliedRate}{
-                                        selection.product.category === 'travelling' ? '/km' : '/ha'
+                                        selection.product.category === 'travelling' ? '/km' :
+                                        selection.product.category === 'accommodation' ? '/night' :
+                                        selection.product.category === 'imaging' ? '/ha' :
+                                        selection.product.serviceUnit === 'nights' ? '/night' :
+                                        selection.product.serviceUnit === 'km' ? '/km' :
+                                        selection.product.serviceUnit === 'hectares' ? '/ha' :
+                                        '/ha'
                                       }</div>
                                       <div>Subtotal: R{selection.calculation.subtotal}</div>
                                       {selection.calculation.discountAmount > 0 && (
@@ -525,7 +573,9 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
                                             selection.product.category === 'spraying' ? 'L/ha' :
                                             selection.product.category === 'granular' ? 'kg/ha' :
                                             selection.product.category === 'travelling' ? 'km' :
-                                            selection.product.unit
+                                            selection.product.category === 'accommodation' ? 'nights' :
+                                            selection.product.category === 'imaging' ? 'hectares' :
+                                            'units'
                                           }
                                         </div>
                                       )}
@@ -562,7 +612,15 @@ export default function NewQuote({ onNavigate, quoteId }: NewQuoteProps) {
                         .map((selection) => (
                           <div key={selection.product.id} className="flex justify-between text-sm">
                             <span className="truncate mr-2">
-                              {selection.product.name} ({selection.quantity} ha)
+                              {selection.product.name} ({selection.quantity} {
+                                selection.product.category === 'travelling' ? 'km' :
+                                selection.product.category === 'accommodation' ? 'nights' :
+                                selection.product.category === 'imaging' ? 'ha' :
+                                selection.product.serviceUnit === 'nights' ? 'nights' :
+                                selection.product.serviceUnit === 'km' ? 'km' :
+                                selection.product.serviceUnit === 'hectares' ? 'ha' :
+                                'ha'
+                              })
                             </span>
                             <span>R{selection.calculation!.total}</span>
                           </div>

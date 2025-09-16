@@ -11,9 +11,9 @@ export default function createProductsRouter(pool) {
       // Start a transaction
       await pool.query('BEGIN');
       
-      // Insert the product
+      // Insert the product (using service_id instead of category)
       const result = await pool.query(
-        'INSERT INTO products (id, name, description, category, pricing_type, base_rate, discount_threshold, discount_rate, sku, unit) VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+        'INSERT INTO products (id, name, description, service_id, pricing_type, base_rate, discount_threshold, discount_rate, sku, unit) VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
         [name, description, category, pricingType, baseRate, discountThreshold, discountRate, await generateSku(pool, category, name, pricingType, baseRate, tiers), unit || 'unit']
       );
       
@@ -55,8 +55,17 @@ export default function createProductsRouter(pool) {
   // Get all products
   router.get('/', async (req, res) => {
     try {
-      // Get all products
-      const productsResult = await pool.query('SELECT * FROM products ORDER BY category, name');
+      // Get all products with category information
+      const productsResult = await pool.query(`
+        SELECT 
+          p.*,
+          c.name as service_name,
+          c.description as service_description,
+          c.unit as service_unit
+        FROM products p 
+        LEFT JOIN services c ON p.service_id = c.id 
+        ORDER BY c.name, p.name
+      `);
       const products = productsResult.rows;
       
       // Get tiers for all products
@@ -96,13 +105,18 @@ export default function createProductsRouter(pool) {
         id: product.id,
         name: product.name,
         description: product.description,
-        category: product.category,
+        category: product.service_name, // Use service_name for category field to maintain compatibility 
+        categoryId: product.service_id, // Also provide categoryId for new structure  
+        serviceId: product.service_id, // New service-based structure
+        serviceName: product.service_name, // Add service name for display
+        categoryName: product.service_name, // Keep categoryName for backwards compatibility
         pricingType: product.pricing_type,
         baseRate: parseFloat(product.base_rate),
         discountThreshold: parseFloat(product.discount_threshold),
         discountRate: parseFloat(product.discount_rate),
         sku: product.sku,
         unit: product.unit,
+        serviceUnit: product.service_unit, // Add service unit for correct unit display
         createdAt: product.created_at,
         updatedAt: product.updated_at,
         tiers: product.tiers
@@ -118,7 +132,17 @@ export default function createProductsRouter(pool) {
   // Get product by ID
   router.get('/:id', async (req, res) => {
     try {
-      const productResult = await pool.query('SELECT * FROM products WHERE id = $1', [req.params.id]);
+      const productResult = await pool.query(`
+        SELECT 
+          p.*,
+          c.name as service_name,
+          c.description as service_description,
+          c.unit as service_unit
+        FROM products p 
+        LEFT JOIN services c ON p.service_id = c.id 
+        WHERE p.id = $1
+      `, [req.params.id]);
+      
       if (productResult.rows.length === 0) {
         return res.status(404).json({ error: 'Product not found' });
       }
@@ -147,13 +171,18 @@ export default function createProductsRouter(pool) {
           id: product.id,
           name: product.name,
           description: product.description,
-          category: product.category,
+          category: product.service_name, // Use service_name for compatibility
+          categoryId: product.service_id,
+          serviceId: product.service_id, // New service-based structure
+          serviceName: product.service_name,
+          categoryName: product.service_name, // Keep for backwards compatibility
           pricingType: product.pricing_type,
           baseRate: parseFloat(product.base_rate),
           discountThreshold: parseFloat(product.discount_threshold),
           discountRate: parseFloat(product.discount_rate),
           sku: product.sku,
           unit: product.unit,
+          serviceUnit: product.service_unit, // Add service unit
           createdAt: product.created_at,
           updatedAt: product.updated_at,
           tiers: transformedTiers
@@ -166,13 +195,18 @@ export default function createProductsRouter(pool) {
           id: product.id,
           name: product.name,
           description: product.description,
-          category: product.category,
+          category: product.service_name, // Use service_name for compatibility
+          categoryId: product.service_id,
+          serviceId: product.service_id, // New service-based structure
+          serviceName: product.service_name,
+          categoryName: product.service_name, // Keep for backwards compatibility
           pricingType: product.pricing_type,
           baseRate: parseFloat(product.base_rate),
           discountThreshold: parseFloat(product.discount_threshold),
           discountRate: parseFloat(product.discount_rate),
           sku: product.sku,
           unit: product.unit,
+          serviceUnit: product.service_unit, // Add service unit
           createdAt: product.created_at,
           updatedAt: product.updated_at,
           tiers: []
@@ -194,7 +228,7 @@ export default function createProductsRouter(pool) {
       await client.query('BEGIN');
 
       const result = await client.query(
-        'UPDATE products SET name = $1, description = $2, category = $3, pricing_type = $4, base_rate = $5, discount_threshold = $6, discount_rate = $7, unit = $8 WHERE id = $9 RETURNING *',
+        'UPDATE products SET name = $1, description = $2, service_id = $3, pricing_type = $4, base_rate = $5, discount_threshold = $6, discount_rate = $7, unit = $8 WHERE id = $9 RETURNING *',
         [name, description, category, pricingType, baseRate, discountThreshold, discountRate, unit || 'unit', req.params.id]
       );
 

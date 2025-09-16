@@ -277,45 +277,6 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           </CardContent>
         </Card>
 
-        {/* Top Customers Analytics */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Users className="h-5 w-5 text-orange-600" />
-              <span>Top Customers</span>
-            </CardTitle>
-            <CardDescription>
-              Your highest value customers by revenue
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {stats.topCustomers.length > 0 ? (
-                stats.topCustomers.map((customer, index) => (
-                  <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-bold text-orange-600">#{index + 1}</span>
-                      </div>
-                      <span className="font-medium">{customer.name}</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-green-600">{formatCurrency(customer.revenue)}</div>
-                      <div className="text-sm text-gray-500">{customer.quoteCount} quotes</div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center text-gray-500 py-8">
-                  <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                  <p>No customer data yet</p>
-                  <p className="text-sm">Create quotes to see your top customers</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Performance Overview */}
         <Card>
           <CardHeader>

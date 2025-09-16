@@ -28,7 +28,7 @@ export const storageService = {
       const settings = await apiService.getSettings();
       if (!settings) {
         const defaultSettings: Settings = {
-          currency: 'ZAR',
+          currency: 'R',
           language: 'en',
           branding: {
             companyName: 'AgriHover Drone Services',

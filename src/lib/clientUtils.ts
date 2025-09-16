@@ -43,10 +43,16 @@ export const getClientInitials = (client: Client): string => {
   return (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase();
 };
 
-export const formatCurrency = (amount: number, currency: string = 'ZAR'): string => {
-  return new Intl.NumberFormat('en-ZA', {
+export const formatCurrency = (amount: number, currency: string = 'R'): string => {
+  // For South African Rand, use simple R prefix format
+  if (currency === 'R') {
+    return `R ${amount.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  
+  // For other currencies, use standard Intl formatting
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: currency,
+    currency: currency === 'R' ? 'ZAR' : currency,
   }).format(amount);
 };
 

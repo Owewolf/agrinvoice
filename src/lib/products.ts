@@ -1,6 +1,8 @@
-import { ProductCategory, PricingType } from '@/types';
+import { ProductCategory, PricingType, Category } from '@/types/api';
 import { Product, ProductTier } from '@/types/api';
+import { apiService } from './api';
 
+// Keep original categories as fallback for backward compatibility
 export const PRODUCT_CATEGORIES: { value: ProductCategory; label: string; description: string }[] = [
   { value: 'spraying', label: 'Spraying', description: 'Drone spraying services with tiered pricing' },
   { value: 'granular', label: 'Granular', description: 'Granular application with tiered pricing' },
@@ -8,6 +10,16 @@ export const PRODUCT_CATEGORIES: { value: ProductCategory; label: string; descri
   { value: 'imaging', label: 'Imaging', description: 'Aerial imaging services' },
   { value: 'accommodation', label: 'Accommodation', description: 'Accommodation services' }
 ];
+
+// New function to fetch dynamic categories
+export async function getProductCategories(): Promise<Category[]> {
+  try {
+    return await apiService.getCategories();
+  } catch (error) {
+    console.error('Failed to fetch categories:', error);
+    return []; // Fallback to empty array
+  }
+}
 
 export const PRICING_TYPES: { value: PricingType; label: string; description: string }[] = [
   { value: 'tiered', label: 'Tiered Pricing', description: 'Sliding scale based on quantity thresholds' },
@@ -34,15 +46,15 @@ export function getUnitForCategory(category: ProductCategory, pricingType: Prici
   
   switch (category) {
     case 'spraying':
-      return 'L/ha';
+      return 'liters/ha';
     case 'granular':
       return 'kg/ha';
     case 'travelling':
       return 'km';
     case 'imaging':
-      return 'ha';
+      return 'hectares';
     case 'accommodation':
-      return 'service';
+      return 'nights';
     default:
       return 'unit';
   }
