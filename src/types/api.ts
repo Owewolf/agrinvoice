@@ -44,15 +44,63 @@ export interface Client {
 
 // Product types
 export interface Service {
-    id: string;
-    name: string;
-    description?: string;
-    unit: string;
-    createdAt: string;
-    updatedAt: string;
+  id: string;
+  name: string;
+  description?: string;
+  unit: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-// Legacy category interface - kept for backward compatibility
+export interface ServiceCost {
+  id: string;
+  service_id: string;
+  cost_type: 'fixed' | 'variable' | 'overhead';
+  cost_name: string;
+  cost_per_unit: number;
+  unit: string;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductCost {
+  id: string;
+  product_id: string;
+  cost_name: string;
+  cost_per_unit: number;
+  unit: string;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OverheadCost {
+  id: string;
+  cost_name: string;
+  cost_type: 'percentage' | 'fixed_amount';
+  cost_value: number; // percentage (0.15 = 15%) or fixed amount
+  applies_to: 'all' | 'revenue' | 'direct_costs';
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CostBreakdown {
+  revenue: number;
+  directCosts: number;
+  overheadCosts: number;
+  netProfit: number;
+  profitMargin: number;
+  costDetails: Array<{
+    category: string;
+    amount: number;
+    description: string;
+  }>;
+}// Legacy category interface - kept for backward compatibility
 export interface Category extends Service {}
 
 export type ProductCategory = 'spraying' | 'granular' | 'travelling' | 'imaging' | 'accommodation';
@@ -71,7 +119,7 @@ export interface Product {
     id: string;
     name: string;
     description?: string;
-    category: ProductCategory | string; // Support both old string format and new Category name
+    category?: ProductCategory | string; // Optional - support both old string format and new Category name
     categoryId?: string; // New field for category ID
     serviceId?: string; // New field for service ID
     serviceName?: string; // Service name for display

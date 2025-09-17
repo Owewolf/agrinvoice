@@ -63,7 +63,7 @@ export default function Login({ onNavigate }: LoginProps) {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold text-blue-600">AgriHover</CardTitle>
-          <CardDescription>Drone Spraying Quote & Invoice System</CardDescription>
+          <CardDescription>Drone Spraying Office System</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">

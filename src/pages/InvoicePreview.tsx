@@ -3,11 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Download, Mail, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Download, Mail, MessageCircle, TrendingUp, DollarSign, Calculator } from 'lucide-react';
 import { storageService } from '@/lib/storage';
 import { invoiceStorageService } from '@/lib/invoiceStorage';
 import { apiService } from '@/lib/api';
-import { Invoice, Settings } from '@/types/api';
+import { Invoice, Settings, CostBreakdown } from '@/types/api';
 import { toast } from 'sonner';
 
 interface InvoicePreviewProps {
@@ -18,6 +18,8 @@ interface InvoicePreviewProps {
 export default function InvoicePreview({ onNavigate, invoiceId }: InvoicePreviewProps) {
   const [invoice, setInvoice] = useState<any>(null);  // eslint-disable-line @typescript-eslint/no-explicit-any
   const [settings, setSettings] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [profitAnalysis, setProfitAnalysis] = useState<CostBreakdown | null>(null);
+  const [loadingCosts, setLoadingCosts] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -26,6 +28,8 @@ export default function InvoicePreview({ onNavigate, invoiceId }: InvoicePreview
           const foundInvoice = await invoiceStorageService.getInvoice(invoiceId);
           if (foundInvoice) {
             setInvoice(foundInvoice);
+            // Load profit analysis for all invoices
+            await loadProfitAnalysis(foundInvoice);
           }
         } catch (error) {
           console.error('Error loading invoice:', error);
@@ -43,16 +47,63 @@ export default function InvoicePreview({ onNavigate, invoiceId }: InvoicePreview
     loadData();
   }, [invoiceId]);
 
+  const loadProfitAnalysis = async (invoiceData: Invoice) => {
+    setLoadingCosts(true);
+    try {
+      console.log('🔍 Loading profit analysis for invoice:', {
+        invoiceId: invoiceData.id,
+        status: invoiceData.status,
+        itemsCount: invoiceData.items?.length || 0,
+        revenue: invoiceData.totalCharge || 0
+      });
+      
+      const analysis = await apiService.calculateCosts({
+        invoiceId: invoiceData.id,
+        items: invoiceData.items?.map(item => ({
+          productId: item.productId,
+          quantity: item.quantity
+        })) || [],
+        revenue: invoiceData.totalCharge || 0
+      });
+      
+      console.log('📊 Profit analysis result:', {
+        hasAnalysis: !!analysis,
+        hasCostDetails: !!(analysis?.costDetails),
+        costDetailsCount: analysis?.costDetails?.length || 0
+      });
+      
+      setProfitAnalysis(analysis);
+    } catch (error) {
+      console.error('Error loading profit analysis:', error);
+      toast.error('Failed to load profit analysis');
+    } finally {
+      setLoadingCosts(false);
+    }
+  };
+
   const handleStatusChange = async (newStatus: 'draft' | 'sent' | 'paid' | 'overdue') => {
     if (invoice) {
       try {
         // Update status in database via API
-        const updatedInvoice = await apiService.updateInvoiceStatus(invoice.id, newStatus);
+        await apiService.updateInvoiceStatus(invoice.id, newStatus);
         
-        // Update local state
+        // Update local state with new status but keep existing invoice data
+        const updatedInvoice = { ...invoice, status: newStatus };
         setInvoice(updatedInvoice);
         
-        toast.success(`Invoice status updated to ${newStatus}`);
+        // Clear current profit analysis to show loading state
+        setProfitAnalysis(null);
+        
+        // Reload profit analysis with the complete invoice data (including items)
+        console.log('🔄 Status changed, reloading profit analysis with invoice:', {
+          id: updatedInvoice.id,
+          status: updatedInvoice.status,
+          hasItems: !!(updatedInvoice.items),
+          itemsLength: updatedInvoice.items?.length
+        });
+        await loadProfitAnalysis(updatedInvoice);
+        
+        toast.success(`Invoice marked as ${newStatus}`);
       } catch (error) {
         console.error('Failed to update invoice status:', error);
         toast.error('Failed to update invoice status');
@@ -543,6 +594,101 @@ export default function InvoicePreview({ onNavigate, invoiceId }: InvoicePreview
 
           {/* Actions Panel */}
           <div className="space-y-4">
+            {/* Profit Analysis Panel - Always visible */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center space-x-2">
+                  <TrendingUp className="h-5 w-5" />
+                  <span>Profit Analysis</span>
+                </CardTitle>
+                <CardDescription>
+                  Cost breakdown and profit margins
+                </CardDescription>
+              </CardHeader>
+                <CardContent>
+                  {loadingCosts ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                  ) : profitAnalysis ? (
+                    <div className="space-y-4">
+                      {/* Summary Cards */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                          <div className="flex items-center space-x-2">
+                            <DollarSign className="h-4 w-4 text-green-600" />
+                            <div>
+                              <p className="text-xs text-green-600 font-medium">Revenue</p>
+                              <p className="text-sm font-bold text-green-800">{settings?.currency} {profitAnalysis.revenue.toFixed(2)}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="bg-red-50 p-3 rounded-lg border border-red-200">
+                          <div className="flex items-center space-x-2">
+                            <Calculator className="h-4 w-4 text-red-600" />
+                            <div>
+                              <p className="text-xs text-red-600 font-medium">Total Costs</p>
+                              <p className="text-sm font-bold text-red-800">{settings?.currency} {profitAnalysis.directCosts.toFixed(2)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Profit Calculation */}
+                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-blue-800">Net Profit:</span>
+                            <span className="text-lg font-bold text-blue-900">
+                              {settings?.currency} {profitAnalysis.netProfit.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-blue-800">Profit Margin:</span>
+                            <span className="text-sm font-bold text-blue-900">
+                              {profitAnalysis.profitMargin.toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Detailed Cost Breakdown */}
+                      {profitAnalysis.costDetails && profitAnalysis.costDetails.length > 0 && (
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-medium text-gray-700">Cost Breakdown:</h4>
+                          <div className="space-y-1">
+                            {profitAnalysis.costDetails.map((item, index) => (
+                              <div key={index} className="flex justify-between items-center text-xs text-gray-600 bg-gray-50 p-2 rounded">
+                                <span>{item.description || item.category}</span>
+                                <span>{settings?.currency} {item.amount.toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Overhead Costs */}
+                      {profitAnalysis.overheadCosts > 0 && (
+                        <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs text-yellow-600 font-medium">Overhead Costs:</span>
+                            <span className="text-sm font-bold text-yellow-800">
+                              {settings?.currency} {profitAnalysis.overheadCosts.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-gray-500">
+                      <Calculator className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                      <p className="text-sm">No cost data available</p>
+                      <p className="text-xs text-gray-400">Configure costs in Cost Management</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Actions</CardTitle>

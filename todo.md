@@ -1,300 +1,149 @@
-FOLLOW STEP BY STEP AND ADJUST IF NEEDED _____________________update the AgriHover app to support dynamic product categories (beyond the hardcoded ones like spraying, granular, travelling, imaging, and accommodation), you'll need to make categories configurable via the database and API, rather than hardcoded in the frontend. This allows admins to add, edit, or remove categories through the AdminSettings page, and the Products page will reflect these changes dynamically.
+ # TODO: Cost and Profit Analysis Implementation Plan
 
-### High-Level Approach
-1. **Database Changes**: Add a `categories` table to store category data (id, name, description, etc.).
-2. **Backend Updates**: Create API routes for CRUD operations on categories.
-3. **Frontend Updates**: 
-   - Fetch categories from the API instead of using hardcoded arrays.
-   - Update AdminSettings to include a form for managing categories.
-   - Update Products page to use dynamic categories for filtering and forms.
-4. **Migration**: Ensure existing data migrates smoothly (e.g., seed the new table with current categories).
+This document outlines the remaining tasks to fully integrate the cost tracking and profit analysis system into the application. The database schema for costs is already in place; this plan focuses on the API and frontend implementation.
 
-This keeps the app scalable and avoids hardcoding.
+## 1. **Backend API Implementation (`src/routes/costs.js`)**
 
-### Step-by-Step Implementation
+The primary task is to create API endpoints to manage and retrieve cost data.
 
-#### 1. Update the Database Schema
-Add a new table for categories in agrihover.sql. Run this as a migration.
+**File to Create:** `src/routes/costs.js`
 
-```sql
--- Add categories table
-CREATE TABLE categories (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL UNIQUE,
-    description TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+**Endpoints to Implement:**
 
--- Seed with existing categories
-INSERT INTO categories (name, description) VALUES 
-('spraying', 'Drone spraying services with tiered pricing'),
-('granular', 'Granular application with tiered pricing'),
-('travelling', 'Travel charges per kilometer'),
-('imaging', 'Aerial imaging services'),
-('accommodation', 'Accommodation services');
+-   **Cost Management (CRUD):**
+    -   `GET /api/costs/services`: Fetch all service costs.
+    -   `POST /api/costs/services`: Create a new service cost.
+    -   `PUT /api/costs/services/:id`: Update a service cost.
+    -   `DELETE /api/costs/services/:id`: Delete a service cost.
+    -   (Repeat for `products` and `overheads`).
+-   **Profit Calculation Engine:**
+    -   `POST /api/costs/calculate`: This is a critical endpoint that will receive invoice data, calculate the total costs (direct and overhead), and return a full profit breakdown. This will be used by the `InvoicePreview` page.
 
--- Update products table to reference categories (if not already done)
-ALTER TABLE products ADD COLUMN category_id UUID REFERENCES categories(id);
--- Migrate existing data (assuming category is currently a string)
-UPDATE products SET category_id = (SELECT id FROM categories WHERE name = products.category);
-ALTER TABLE products DROP COLUMN category;
-```
+## 2. **Frontend API Service (`src/lib/api.ts`)**
 
-#### 2. Backend API Routes
-Create a new router for categories in `src/routes/categories.js`.
+Update the `apiService` to include functions for interacting with the new `/api/costs` endpoints.
 
-```js
-import express from 'express';
-const router = express.Router();
+**File to Modify:** `src/lib/api.ts`
 
-export default function createCategoriesRouter(pool) {
-  // Get all categories
-  router.get('/', async (req, res) => {
-    try {
-      const result = await pool.query('SELECT * FROM categories ORDER BY name');
-      res.json(result.rows);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
+**Functions to Add:**
 
-  // Create category
-  router.post('/', async (req, res) => {
-    const { name, description } = req.body;
-    try {
-      const result = await pool.query(
-        'INSERT INTO categories (name, description) VALUES ($1, $2) RETURNING *',
-        [name, description]
-      );
-      res.json(result.rows[0]);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
+```typescript
+// In apiService object
+// ...
 
-  // Update category
-  router.put('/:id', async (req, res) => {
-    const { name, description } = req.body;
-    try {
-      const result = await pool.query(
-        'UPDATE categories SET name = $1, description = $2, updated_at = NOW() WHERE id = $3 RETURNING *',
-        [name, description, req.params.id]
-      );
-      res.json(result.rows[0]);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // Delete category
-  router.delete('/:id', async (req, res) => {
-    try {
-      await pool.query('DELETE FROM categories WHERE id = $1', [req.params.id]);
-      res.json({ message: 'Category deleted' });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  return router;
-}
-```
-
-Mount this router in your main server file (e.g., server.js).
-
-#### 3. Frontend API Service
-Update api.ts to include category endpoints.
-
-```ts
-// ...existing code...
-
-// Categories
-getCategories: async () => {
-  const response = await api.get('/categories');
+// Costs
+getServiceCosts: async () => {
+  const response = await api.get('/costs/services');
   return response.data;
 },
+// Add similar functions for create, update, delete
 
-createCategory: async (data: { name: string; description?: string }) => {
-  const response = await api.post('/categories', data);
+getProductCosts: async () => {
+  const response = await api.get('/costs/products');
   return response.data;
 },
+// Add similar functions for create, update, delete
 
-updateCategory: async (id: string, data: { name: string; description?: string }) => {
-  const response = await api.put(`/categories/${id}`, data);
+getOverheadCosts: async () => {
+  const response = await api.get('/costs/overheads');
   return response.data;
 },
+// Add similar functions for create, update, delete
 
-deleteCategory: async (id: string) => {
-  const response = await api.delete(`/categories/${id}`);
+calculateProfitAnalysis: async (invoiceData: any) => {
+  const response = await api.post('/costs/calculate', invoiceData);
   return response.data;
 },
-
-// ...existing code...
 ```
 
-#### 4. Update Products Library
-Remove hardcoded categories and fetch dynamically in products.ts.
+## 3. **Frontend UI Implementation**
 
-```ts
-// Remove hardcoded PRODUCT_CATEGORIES
-// export const PRODUCT_CATEGORIES = [...];
+### **A. Cost Management Page (`src/pages/CostManagement.tsx`)**
 
-// Add function to fetch categories
-import { apiService } from './api';
+The route and page component already exist. The task is to build out the UI to be a functional admin tool.
 
-export async function getProductCategories() {
-  try {
-    return await apiService.getCategories();
-  } catch (error) {
-    console.error('Failed to fetch categories:', error);
-    return []; // Fallback to empty array
-  }
-}
+**File to Modify:** `src/pages/CostManagement.tsx`
 
-// Update getUnitForCategory to handle dynamic categories
-export function getUnitForCategory(categoryName: string, pricingType: PricingType): string {
-  // Fetch unit based on category name (you may need to store unit in categories table)
-  // For now, use defaults or extend the categories table to include unit
-  switch (categoryName) {
-    case 'spraying':
-      return 'L/ha';
-    case 'granular':
-      return 'kg/ha';
-    case 'travelling':
-      return 'km';
-    case 'imaging':
-      return 'ha';
-    case 'accommodation':
-      return 'service';
-    default:
-      return 'unit';
-  }
-}
-```
+**Implementation Steps:**
 
-#### 5. Update AdminSettings Page
-Add a section to manage categories in AdminSettings.tsx.
+1.  **Use `<Tabs>`:** Create three tabs: "Service Costs", "Product Costs", and "Overhead Costs".
+2.  **Use `<Table>`:** In each tab, display the corresponding costs using the existing `Table` component. The table should show key details and have "Edit" and "Delete" buttons.
+3.  **Use `<Dialog>` for Forms:** Create a reusable `CostForm` component. When the "Add New" or "Edit" button is clicked, open this form in a `<Dialog>` modal.
+4.  **Data Fetching:** Use `@tanstack/react-query` and the new `apiService` functions to fetch and manage cost data.
 
-```tsx
-// ...existing code...
+### **B. Invoice Profit Analysis (`src/pages/InvoicePreview.tsx`)**
 
-// Add state for categories
-const [categories, setCategories] = useState([]);
+This page is already set up to display profit analysis but needs to be connected to the working API.
 
-// Load categories on mount
-useEffect(() => {
-  const loadCategories = async () => {
-    try {
-      const data = await apiService.getCategories();
-      setCategories(data);
-    } catch (error) {
-      console.error('Failed to load categories:', error);
-    }
-  };
-  loadCategories();
-}, []);
+**File to Modify:** `src/pages/InvoicePreview.tsx`
 
-// Add form for new category
-const [newCategory, setNewCategory] = useState({ name: '', description: '' });
+**Implementation Steps:**
 
-const handleAddCategory = async () => {
-  try {
-    const result = await apiService.createCategory(newCategory);
-    setCategories([...categories, result]);
-    setNewCategory({ name: '', description: '' });
-  } catch (error) {
-    console.error('Failed to add category:', error);
-  }
-};
+1.  **Complete `loadProfitAnalysis` function:** Update this function to call the new `apiService.calculateProfitAnalysis` method, passing the invoice details.
+2.  **Create `ProfitAnalysisPanel` Component:** Create a new component at `src/components/invoices/ProfitAnalysisPanel.tsx`. This component will receive the analysis data and display it clearly.
+3.  **Render the Panel:** In `InvoicePreview.tsx`, when an invoice is marked as "Paid", render the `ProfitAnalysisPanel` in the sidebar.
 
-// Update the "Product Categories Info" section to be dynamic
+**`ProfitAnalysisPanel` Mockup:**
+
+```jsx
+// src/components/invoices/ProfitAnalysisPanel.tsx
+
 <Card>
   <CardHeader>
-    <CardTitle>Product Categories</CardTitle>
-    <CardDescription>Manage available product categories</CardDescription>
+    <CardTitle className="flex items-center">
+      <Calculator className="mr-2" />
+      Profit Analysis
+    </CardTitle>
   </CardHeader>
-  <CardContent className="space-y-4">
-    {/* Add new category form */}
-    <div className="grid grid-cols-2 gap-4">
-      <Input
-        placeholder="Category name"
-        value={newCategory.name}
-        onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
-      />
-      <Input
-        placeholder="Description"
-        value={newCategory.description}
-        onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
-      />
+  <CardContent>
+    <div className="flex justify-between font-bold">
+      <span>Revenue:</span>
+      <span>{formatCurrency(analysis.revenue)}</span>
     </div>
-    <Button onClick={handleAddCategory}>Add Category</Button>
-
-    {/* List existing categories */}
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {categories.map((cat) => (
-        <div key={cat.id} className="p-4 border rounded-lg">
-          <h3 className="font-medium">{cat.name}</h3>
-          <p className="text-sm text-gray-500">{cat.description}</p>
-          {/* Add edit/delete buttons as needed */}
-        </div>
-      ))}
+    <div className="flex justify-between">
+      <span>Direct Costs:</span>
+      <span>-{formatCurrency(analysis.directCosts)}</span>
     </div>
+    <div className="flex justify-between">
+      <span>Overhead Costs:</span>
+      <span>-{formatCurrency(analysis.overheadCosts)}</span>
+    </div>
+    <Separator className="my-2" />
+    <div className="flex justify-between font-bold text-lg text-green-600">
+      <span>NET PROFIT:</span>
+      <span>{formatCurrency(analysis.netProfit)} ({analysis.margin}%)</span>
+    </div>
+    <Accordion type="single" collapsible className="w-full mt-4">
+      <AccordionItem value="item-1">
+        <AccordionTrigger>Detailed Breakdown</AccordionTrigger>
+        <AccordionContent>
+          {/* List detailed costs here */}
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
   </CardContent>
 </Card>
-
-// ...existing code...
 ```
 
-#### 6. Update Products Page
-Modify Products.tsx to fetch and use dynamic categories.
+### **C. Dashboard Integration (`src/pages/Dashboard.tsx`)**
 
-```tsx
-// ...existing code...
+Enhance the dashboard with top-level profit metrics.
 
-// Replace hardcoded PRODUCT_CATEGORIES with dynamic fetch
-const [categories, setCategories] = useState([]);
+**File to Modify:** `src/pages/Dashboard.tsx` & `src/lib/dashboardAnalytics.ts`
 
-useEffect(() => {
-  const loadCategories = async () => {
-    const data = await getProductCategories();
-    setCategories(data);
-  };
-  loadCategories();
-}, []);
+**Implementation Steps:**
 
-// Update TabsList to use dynamic categories
-<TabsList className="mb-6">
-  <TabsTrigger value="all">All Products ({products.length})</TabsTrigger>
-  {categories.map(category => (
-    <TabsTrigger key={category.id} value={category.name}>
-      {category.name} ({products.filter(p => p.category === category.name).length})
-    </TabsTrigger>
-  ))}
-</TabsList>
+1.  **Update `dashboardAnalytics`:** Add logic to calculate total costs and net profit across all paid invoices.
+2.  **Add New KPI Cards:**
+    -   Add a "Total Costs" card.
+    -   Add a "Net Profit" card.
+3.  **Enhance Revenue Chart:** Modify the "Monthly Revenue Trend" chart (`MiniLineChart`) to be a `MiniBarChart` that compares `Revenue`, `Costs`, and `Profit` for each month.
 
-// Update form selects to use dynamic categories
-<Select
-  value={formData.category}
-  onValueChange={(value) => {
-    // ...existing logic...
-  }}
->
-  <SelectContent>
-    {categories.map(category => (
-      <SelectItem key={category.id} value={category.name}>
-        {category.name}
-      </SelectItem>
-    ))}
-  </SelectContent>
-</Select>
+## 4. **Action Plan (Step-by-Step)**
 
-// ...existing code...
-```
-
-#### 7. Migration and Testing
-- Run the database migration to create the `categories` table and seed data.
-- Test adding/editing categories in AdminSettings and verify they appear in Products.
-- Update any other references to hardcoded categories (e.g., in products.ts for SKU generation).
-
-This approach ensures categories are fully dynamic while maintaining backward compatibility. If you encounter issues with existing products, ensure the migration maps old string categories to the new table.
+1.  **[Backend]** Create `src/routes/costs.js` and implement all CRUD and calculation endpoints.
+2.  **[Frontend]** Update `src/lib/api.ts` with the new `apiService` functions for costs.
+3.  **[Frontend]** Build the UI for the `CostManagement.tsx` page, enabling administrators to manage all cost types.
+4.  **[Backend/Frontend]** Connect the `InvoicePreview.tsx` page to the `/api/costs/calculate` endpoint and build the `ProfitAnalysisPanel` component to display the results.
+5.  **[Frontend]** Enhance the `Dashboard.tsx` with new profit-related KPIs and charts.
+6.  **[Testing]** Thoroughly test the entire workflow, from adding costs to seeing the profit analysis on an invoice and the dashboard.

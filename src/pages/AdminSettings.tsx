@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Save, Settings, Package, FileText, Users, CreditCard, History } from 'lucide-react';
+import { ArrowLeft, Save, Settings, Package, FileText, Users, CreditCard, History, DollarSign, Calculator } from 'lucide-react';
 import { storageService } from '@/lib/storage';
 import { Settings as SettingsType } from '@/types/api';
 import { toast } from 'sonner';
@@ -382,6 +382,45 @@ export default function AdminSettings({ onNavigate }: AdminSettingsProps) {
                     <div>
                       <h3 className="font-medium">Service Management</h3>
                       <p className="text-sm text-gray-500">Create and manage service categories</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Cost Management */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <DollarSign className="h-5 w-5" />
+                <span>Cost Management</span>
+              </CardTitle>
+              <CardDescription>
+                Manage costs and analyze profit margins
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => onNavigate('cost-management')}>
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-emerald-100 rounded-lg">
+                      <Calculator className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium">Cost Setup</h3>
+                      <p className="text-sm text-gray-500">Configure service costs and overhead rates</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => onNavigate('profit-analysis')}>
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-teal-100 rounded-lg">
+                      <DollarSign className="h-5 w-5 text-teal-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium">Profit Analysis</h3>
+                      <p className="text-sm text-gray-500">View profit margins and cost reports</p>
                     </div>
                   </div>
                 </div>

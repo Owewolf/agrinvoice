@@ -1,7 +1,35 @@
 # AgriHover Application Wiki
 
 ## Overview
-AgriHover is a comprehensive professional drone services invoice and quote management application specifically designed for agricultural businesses. It provides a complete solution for managing clients, creating detailed quotes with operational parameters, generating professional invoices, tracking business performance, and managing agricultural service products with sophisticated pricing models.
+AgriHover is a comprehensive professional drone services invoice and quote management application specifically designed for agricultural businesses. It provides a complete solution for managing clients, creating detailed quotes with operational parameters, generating professional invoices, tracking business performance, managing agricultural service products with sophisticated pricing models, and comprehensive cost management with profit analysis.
+
+## Recent Updates (September 2025)
+
+### 🆕 Enhanced Cost Management System
+- **Multiple Costs Per Product**: Products can now have multiple cost entries (fuel, chemicals, equipment, labor, accommodation, etc.)
+- **Integrated Product Creation**: Cost definition integrated directly into product creation workflow
+- **Cost Management Page**: Dedicated interface for managing product costs and overhead expenses
+- **Profit Analysis**: Real-time profit tracking with cost breakdowns showing product names
+- **Always-Visible Profit Analysis**: Profit analysis now visible on all invoices regardless of status
+
+### 🆕 Database Schema Consolidation
+- **Single Source of Truth**: All migrations consolidated into `agrihover.sql`
+- **Complete Cost Tracking**: Enhanced database schema with comprehensive cost management tables
+- **Backward Compatibility**: Legacy field support during transition periods
+- **Performance Optimizations**: Additional indexes and constraints for cost-related queries
+
+### 🆕 User Experience Improvements
+- **Optional Categories**: Product categories now optional with "None" option available
+- **Enhanced Product Forms**: Streamlined product creation with integrated cost management
+- **Persistent Data**: Cost breakdowns persist correctly across invoice status changes
+- **Comprehensive Debugging**: Enhanced logging for cost calculation troubleshooting
+
+### 🆕 Codebase Cleanup & Optimization
+- **Removed Unused Files**: Cleaned up redundant cost management files, category management, and empty duplicate files
+- **Consolidated Migrations**: All database migrations consolidated into single `agrihover.sql` file
+- **Simplified Architecture**: Removed service_costs table, streamlined to product_costs and overhead_costs only
+- **Enhanced Documentation**: Updated wiki with comprehensive feature documentation
+- **File Structure**: Removed migrations directory, eliminated duplicate QuotePreview files
 
 ## Technology Stack
 
@@ -71,21 +99,35 @@ AgriHover is a comprehensive professional drone services invoice and quote manag
 - Banking information integration for payment processing
 
 ### Product Catalog & Pricing Engine
-- Comprehensive agricultural services database
+- Comprehensive agricultural services database with integrated cost management
+- Multiple costs per product with detailed cost breakdown (fuel, chemicals, equipment, labor, accommodation)
 - Multiple pricing models:
   - **Tiered Pricing**: Based on application rate thresholds (L/ha)
   - **Flat Rate**: Fixed rate per unit area
   - **Per-Kilometer**: Distance-based pricing for specialized services
-- Category-based product organization (herbicides, insecticides, fungicides, fertilizers)
+- Optional category-based product organization with flexible "None" option
 - Discount threshold configuration with automatic application
 - Product tier management with threshold-based rate calculations
 - Real-time pricing calculations based on operational parameters
+- Integrated cost definition during product creation workflow
+
+### Cost Management & Profit Analysis System
+- **Product Cost Tracking**: Multiple cost entries per product with detailed categorization
+- **Cost Management Interface**: Dedicated page for managing all cost types
+- **Overhead Cost Management**: Business-wide overhead expenses with percentage or fixed amount options
+- **Real-Time Profit Analysis**: Comprehensive profit tracking with cost breakdowns
+- **Product Name Integration**: Cost breakdowns display associated product descriptions
+- **Always-Visible Analytics**: Profit analysis available on all invoices regardless of payment status
+- **Cost Persistence**: Cost data maintained correctly across invoice status changes
 
 ### Dashboard & Business Analytics
 - Executive dashboard with key performance indicators
 - Revenue tracking with trend analysis over time
 - Quote conversion rate analytics
 - Client acquisition and retention metrics
+- Comprehensive profit analysis with cost breakdowns
+- Always-visible profit tracking across all invoice statuses
+- Product-level cost analysis with detailed breakdowns
 - Recent activity feeds and notifications
 - Interactive charts for visual data representation
 - Business performance summaries and insights
@@ -124,12 +166,45 @@ AgriHover is a comprehensive professional drone services invoice and quote manag
 - **id**: UUID primary key
 - **name**: Product/service name
 - **description**: Detailed description
-- **category**: Product category (herbicide, insecticide, etc.)
+- **service_id**: Foreign key to services table (replaces category)
 - **unit**: Unit of measurement (hectares, acres)
 - **pricing_type**: Pricing model (tiered, flat, per_km)
 - **base_rate**: Base rate for calculations
 - **discount_threshold**: Minimum quantity for discounts
 - **discount_rate**: Discount percentage (0.1 = 10%)
+- **created_at/updated_at**: Automatic timestamps
+
+#### Enhanced Product Costs Table
+- **id**: UUID primary key
+- **product_id**: Foreign key to products table
+- **cost_category**: Optional cost category (legacy field for backward compatibility)
+- **cost_name**: Descriptive name for the cost (e.g., "Diesel fuel", "Herbicide")
+- **cost_per_unit**: Cost amount per unit
+- **unit**: Unit of measurement for the cost
+- **description**: Optional additional details
+- **is_active**: Boolean flag for active/inactive costs
+- **supplier_cost**: Optional supplier cost (legacy field)
+- **markup_percentage**: Optional markup percentage (legacy field)
+- **created_at/updated_at**: Automatic timestamps
+
+#### Enhanced Overhead Costs Table
+- **id**: UUID primary key
+- **cost_name**: Descriptive name for the overhead cost
+- **cost_type**: Type of cost ('fixed_amount' or 'percentage')
+- **cost_value**: Cost value (fixed amount or percentage)
+- **applies_to**: What the cost applies to ('all', 'revenue', 'direct_costs')
+- **description**: Optional additional details
+- **is_active**: Boolean flag for active/inactive costs
+- **category**: Legacy category field (backward compatibility)
+- **monthly_amount**: Legacy monthly amount field (backward compatibility)
+- **percentage_rate**: Legacy percentage rate field (backward compatibility)
+- **created_at/updated_at**: Automatic timestamps
+
+#### Services Table (Enhanced)
+- **id**: UUID primary key
+- **name**: Service name (replaces category system)
+- **description**: Service description
+- **unit**: Default unit of measurement
 - **created_at/updated_at**: Automatic timestamps
 
 #### Product Tiers Table
@@ -201,10 +276,14 @@ AgriHover is a comprehensive professional drone services invoice and quote manag
 ### Database Features
 - **UUID Primary Keys**: Enhanced security and distributed system compatibility
 - **Automatic Timestamps**: Trigger-based timestamp management for all tables
-- **Foreign Key Constraints**: Data integrity enforcement
-- **Performance Indexes**: Optimized queries for common operations
+- **Foreign Key Constraints**: Data integrity enforcement with CASCADE options
+- **Performance Indexes**: Optimized queries for common operations including cost-related queries
 - **JSONB Fields**: Flexible data storage for complex configurations
 - **Check Constraints**: Data validation at database level
+- **Generated Columns**: Automatic calculation of totals and profit margins
+- **Unique Constraints**: Data integrity for critical relationships (e.g., one profit summary per quote)
+- **Legacy Field Support**: Backward compatibility during schema transitions
+- **Consolidated Schema**: Single source of truth in `agrihover.sql` with all migrations incorporated
 
 ## User Interface & Navigation
 
@@ -225,12 +304,13 @@ AgriHover is a comprehensive professional drone services invoice and quote manag
 - **Accessibility**: WCAG compliant components with keyboard navigation
 
 ### Navigation Structure
-- **Dashboard**: Business overview and key metrics
+- **Dashboard**: Business overview and key metrics with enhanced profit analytics
 - **Clients**: Client management and relationship tracking
-- **Products**: Product catalog and pricing management
+- **Products**: Product catalog and pricing management with integrated cost management
+- **Cost Management**: Dedicated cost management interface for all cost types
 - **New Quote**: Multi-step quote creation wizard
 - **Quote History**: Quote management and status tracking
-- **Invoice History**: Invoice management and payment tracking
+- **Invoice History**: Invoice management and payment tracking with always-visible profit analysis
 - **Admin Settings**: System configuration and branding
 
 ### Component Architecture
@@ -249,13 +329,23 @@ AgriHover is a comprehensive professional drone services invoice and quote manag
 
 ### Advanced Quote Creation
 - **Multi-Step Builder**: Guided quote creation process
-- **Product Selection**: Searchable product catalog with filtering
+- **Product Selection**: Searchable product catalog with filtering and optional categories
+- **Multiple Cost Integration**: Automatic integration of multiple cost types per product
 - **Operational Parameters**: Speed, flow rate, spray width configuration
 - **Real-Time Calculations**: Automatic application rate and pricing calculations
 - **Tiered Pricing Engine**: Automatic rate calculation based on application thresholds
 - **Discount Application**: Automatic discount calculation for qualifying quantities
 - **Parameter Validation**: Operational parameter validation and recommendations
 - **Quote Preview**: Real-time quote preview with professional formatting
+- **Cost Tracking**: Comprehensive cost breakdown with product-specific details
+
+### Enhanced Invoice Management & Profit Analysis
+- **Always-Visible Profit Analysis**: Profit analysis available on all invoices regardless of status
+- **Comprehensive Cost Breakdown**: Detailed cost analysis showing product names and cost categories
+- **Real-Time Profit Calculations**: Automatic profit margin and cost analysis
+- **Status Change Persistence**: Cost data maintained correctly across invoice status changes
+- **Enhanced Debugging**: Comprehensive logging for cost calculation troubleshooting
+- **Product-Level Insights**: Cost breakdown by individual products with descriptive names
 
 ### Professional PDF Generation
 - **Branded Documents**: Company logo and branding integration
@@ -297,13 +387,24 @@ AgriHover is a comprehensive professional drone services invoice and quote manag
 - `DELETE /api/clients/:id` - Client deletion with cascade handling
 - `GET /api/clients/:id/stats` - Client-specific statistics including totalQuotes, totalInvoices, outstandingAmount
 
-### Product Management API
-- `GET /api/products` - Product catalog with category filtering
-- `POST /api/products` - New product creation with pricing configuration
-- `GET /api/products/:id` - Detailed product information including tiers
-- `PUT /api/products/:id` - Product updates including pricing modifications
-- `DELETE /api/products/:id` - Product deletion with usage validation
-- `GET /api/products/:id/tiers` - Product tier pricing information
+### Cost Management API
+- `GET /api/costs/product-costs` - Retrieve all product costs with filtering
+- `POST /api/costs/product-costs` - Create new product cost entries
+- `PUT /api/costs/product-costs/:id` - Update existing product costs
+- `DELETE /api/costs/product-costs/:id` - Delete product cost entries
+- `GET /api/costs/overhead-costs` - Retrieve overhead costs with active/inactive filtering
+- `POST /api/costs/overhead-costs` - Create new overhead cost entries
+- `PUT /api/costs/overhead-costs/:id` - Update overhead cost configurations
+- `DELETE /api/costs/overhead-costs/:id` - Delete overhead cost entries
+- `GET /api/costs/calculate/:invoiceId` - Calculate comprehensive cost analysis for invoices
+- `GET /api/costs/profit-analysis/:invoiceId` - Detailed profit analysis with cost breakdowns
+
+### Enhanced Product Management API
+- `GET /api/products` - Product catalog with integrated cost information
+- `POST /api/products` - Create products with multiple cost entries in single request
+- `GET /api/products/:id/costs` - Retrieve all costs associated with specific product
+- `POST /api/products/:id/costs` - Add new cost entries to existing products
+- `PUT /api/products/:id/costs/:costId` - Update specific product cost entries
 
 ### Quote Management API
 - `GET /api/quotes` - Quote listing with status filtering and pagination
@@ -377,18 +478,38 @@ cd agri_invoice
 # Install dependencies
 pnpm install
 
-# Database setup
+# Database setup (consolidated schema)
 createdb agrihover
 psql agrihover < agrihover.sql
 
 # Environment configuration
 cp .env.example .env
-# Configure database credentials and JWT secrets
+# Configure database credentials and JWT secrets in .env:
+# DB_NAME=agrihover
+# DB_USER=postgres  
+# DB_PASSWORD=your_password
+# DB_HOST=localhost
+# DB_PORT=5432
 
 # Start development servers
-pnpm dev         # Frontend development server
-pnpm server      # Backend API server
+pnpm dev         # Frontend development server (http://localhost:5173)
+pnpm server      # Backend API server (http://localhost:3001)
 ```
+
+### Database Schema Deployment
+- **Single Source of Truth**: `agrihover.sql` contains the complete, consolidated database schema
+- **All Migrations Incorporated**: No separate migration files needed
+- **Production Ready**: Includes all cost management tables and relationships
+- **Sample Data**: Includes realistic test data for immediate development use
+- **Verification Queries**: Built-in verification to confirm successful deployment
+- **Backward Compatibility**: Legacy fields maintained during transition periods
+
+### Database Configuration
+The database configuration matches the `.env` file requirements:
+- **Database Name**: `agrihover` (as specified in .env)
+- **PostgreSQL Version**: 12+ required for advanced features
+- **Extensions Required**: `pgcrypto` for UUID generation and password hashing
+- **Tables Created**: 14 core tables including comprehensive cost management functionality
 
 ### Production Deployment
 - **Environment Configuration**: Production environment variables

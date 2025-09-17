@@ -1,16 +1,28 @@
 -- AgriHover Database Schema
--- Last updated: 2025-09-16
+-- Last updated: 2025-09-17
 -- Complete production schema with all features and relationships
 -- All migrations have been incorporated into this file
+--
+-- DATABASE CONFIGURATION:
+-- Database Name: agrihover (as per .env file)
+-- PostgreSQL Version: 12+
+-- Required Extensions: pgcrypto
 --
 -- MIGRATION HISTORY INCORPORATED:
 -- - add_categories_table.sql: Added services table with UUID references 
 -- - add_unit_to_categories.sql: Added unit field to services table
 -- - add_website_to_branding.sql: Added website field to branding JSON
 -- - rename_categories_to_services.sql: Renamed categories to services table
+-- - add_costs_tables.sql: Added product_costs, overhead_costs tables
+-- - add_quote_cost_tracking.sql: Added quote_costs and quote_profit_summary tables
+-- - make_cost_category_optional.sql: Made cost_category optional in product_costs
+-- - update_overhead_costs_structure.sql: Updated overhead_costs table structure
+-- - update_product_costs_structure.sql: Updated product_costs table structure
 -- - Currency changed from 'ZAR' to 'R' throughout application
 --
--- This file represents the complete, current database schema.
+-- *** THIS FILE IS THE SINGLE SOURCE OF TRUTH FOR THE DATABASE SCHEMA ***
+-- All migrations have been consolidated into this file. 
+-- The migrations/ directory has been removed.
 -- No additional migration files are needed.
 
 -- Enable UUID generation and password hashing
@@ -62,6 +74,113 @@ CREATE TABLE services (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Enhanced Product Costs Table - Specific costs per product with full migration support
+CREATE TABLE product_costs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID REFERENCES products(id) ON DELETE CASCADE NOT NULL,
+    cost_category VARCHAR(100), -- Made optional - legacy field for backward compatibility
+    cost_name VARCHAR(255) NOT NULL,
+    cost_per_unit NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+    unit VARCHAR(50) NOT NULL DEFAULT 'unit',
+    description TEXT,
+    is_active BOOLEAN DEFAULT true,
+    -- Legacy fields for backward compatibility
+    supplier_cost NUMERIC(10,2), -- Optional supplier cost
+    markup_percentage NUMERIC(5,2), -- Optional markup percentage
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enhanced Overhead Costs Table - General business overhead with migration support
+CREATE TABLE overhead_costs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cost_name VARCHAR(255) NOT NULL,
+    cost_type VARCHAR(50) NOT NULL CHECK (cost_type IN ('fixed_amount', 'percentage')),
+    cost_value NUMERIC(10, 4) NOT NULL, -- percentage (0.15 = 15%) or fixed amount
+    applies_to VARCHAR(50) DEFAULT 'all' CHECK (applies_to IN ('all', 'revenue', 'direct_costs')),
+    description TEXT,
+    is_active BOOLEAN DEFAULT true,
+    -- Legacy fields for backward compatibility during transition
+    category VARCHAR(100), -- Legacy category field
+    monthly_amount NUMERIC(10,2), -- Legacy fixed monthly amount
+    percentage_rate NUMERIC(5,2), -- Legacy percentage rate for variable costs
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Quote Cost Tracking Tables
+CREATE TABLE quote_costs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    quote_id UUID NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+    quote_item_id UUID NOT NULL REFERENCES quote_items(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES products(id),
+    
+    -- Cost breakdown
+    quantity NUMERIC(8,2) NOT NULL,
+    
+    -- Product costs (per unit)
+    fuel_cost_per_unit NUMERIC(10,4) DEFAULT 0,
+    chemical_cost_per_unit NUMERIC(10,4) DEFAULT 0,
+    equipment_cost_per_unit NUMERIC(10,4) DEFAULT 0,
+    labor_cost_per_unit NUMERIC(10,4) DEFAULT 0,
+    accommodation_cost_per_unit NUMERIC(10,4) DEFAULT 0,
+    other_cost_per_unit NUMERIC(10,4) DEFAULT 0,
+    
+    -- Total costs (quantity * cost_per_unit)
+    total_fuel_cost NUMERIC(10,2) GENERATED ALWAYS AS (quantity * fuel_cost_per_unit) STORED,
+    total_chemical_cost NUMERIC(10,2) GENERATED ALWAYS AS (quantity * chemical_cost_per_unit) STORED,
+    total_equipment_cost NUMERIC(10,2) GENERATED ALWAYS AS (quantity * equipment_cost_per_unit) STORED,
+    total_labor_cost NUMERIC(10,2) GENERATED ALWAYS AS (quantity * labor_cost_per_unit) STORED,
+    total_accommodation_cost NUMERIC(10,2) GENERATED ALWAYS AS (quantity * accommodation_cost_per_unit) STORED,
+    total_other_cost NUMERIC(10,2) GENERATED ALWAYS AS (quantity * other_cost_per_unit) STORED,
+    
+    -- Total direct cost for this line item
+    total_direct_cost NUMERIC(10,2) GENERATED ALWAYS AS (
+        (quantity * fuel_cost_per_unit) + 
+        (quantity * chemical_cost_per_unit) + 
+        (quantity * equipment_cost_per_unit) + 
+        (quantity * labor_cost_per_unit) + 
+        (quantity * accommodation_cost_per_unit) + 
+        (quantity * other_cost_per_unit)
+    ) STORED,
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Quote Profit Summary Table
+CREATE TABLE quote_profit_summary (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    quote_id UUID NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+    
+    -- Revenue
+    total_revenue NUMERIC(10,2) NOT NULL DEFAULT 0,
+    
+    -- Direct costs
+    total_direct_costs NUMERIC(10,2) NOT NULL DEFAULT 0,
+    
+    -- Overhead costs (calculated from overhead_costs table)
+    total_overhead_costs NUMERIC(10,2) NOT NULL DEFAULT 0,
+    
+    -- Profit calculations
+    gross_profit NUMERIC(10,2) GENERATED ALWAYS AS (total_revenue - total_direct_costs) STORED,
+    net_profit NUMERIC(10,2) GENERATED ALWAYS AS (total_revenue - total_direct_costs - total_overhead_costs) STORED,
+    profit_margin NUMERIC(5,4) GENERATED ALWAYS AS (
+        CASE 
+            WHEN total_revenue > 0 THEN ((total_revenue - total_direct_costs - total_overhead_costs) / total_revenue)
+            ELSE 0
+        END
+    ) STORED,
+    
+    -- Status tracking
+    is_invoiced BOOLEAN DEFAULT FALSE,
+    is_paid BOOLEAN DEFAULT FALSE,
+    paid_at TIMESTAMPTZ NULL,
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Products Table
 CREATE TABLE products (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -82,9 +201,9 @@ CREATE TABLE products (
 -- Product Tiers Table
 CREATE TABLE product_tiers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    product_id UUID REFERENCES products(id) ON DELETE CASCADE,
-    threshold NUMERIC(8, 2) NOT NULL,
-    rate NUMERIC(10, 2) NOT NULL,
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    threshold INTEGER NOT NULL,
+    rate DECIMAL(10,2) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -159,6 +278,10 @@ $$ language 'plpgsql';
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_clients_updated_at BEFORE UPDATE ON clients FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_services_updated_at BEFORE UPDATE ON services FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_product_costs_updated_at BEFORE UPDATE ON product_costs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_overhead_costs_updated_at BEFORE UPDATE ON overhead_costs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_quote_costs_updated_at BEFORE UPDATE ON quote_costs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_quote_profit_summary_updated_at BEFORE UPDATE ON quote_profit_summary FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_product_tiers_updated_at BEFORE UPDATE ON product_tiers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_quotes_updated_at BEFORE UPDATE ON quotes FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -173,6 +296,18 @@ CREATE INDEX idx_clients_email ON clients(email);
 CREATE INDEX idx_clients_phone ON clients(phone);
 CREATE INDEX idx_clients_created_by ON clients(created_by);
 CREATE INDEX idx_services_name ON services(name);
+CREATE INDEX idx_product_costs_product_id ON product_costs(product_id);
+CREATE INDEX idx_product_costs_cost_category ON product_costs(cost_category);
+CREATE INDEX idx_product_costs_is_active ON product_costs(is_active);
+CREATE INDEX idx_overhead_costs_cost_name ON overhead_costs(cost_name);
+CREATE INDEX idx_overhead_costs_cost_type ON overhead_costs(cost_type);
+CREATE INDEX idx_overhead_costs_is_active ON overhead_costs(is_active);
+CREATE INDEX idx_overhead_costs_category ON overhead_costs(category);
+CREATE INDEX idx_quote_costs_quote_id ON quote_costs(quote_id);
+CREATE INDEX idx_quote_costs_quote_item_id ON quote_costs(quote_item_id);
+CREATE INDEX idx_quote_costs_product_id ON quote_costs(product_id);
+CREATE INDEX idx_quote_profit_summary_quote_id ON quote_profit_summary(quote_id);
+CREATE INDEX idx_quote_profit_summary_is_paid ON quote_profit_summary(is_paid);
 CREATE INDEX idx_products_name ON products(name);
 CREATE INDEX idx_products_sku ON products(sku);
 CREATE INDEX idx_products_service_id ON products(service_id);
@@ -195,6 +330,9 @@ CREATE INDEX idx_invoices_due_date ON invoices(due_date);
 CREATE INDEX idx_files_uploaded_by ON files(uploaded_by);
 CREATE INDEX idx_files_upload_date ON files(upload_date);
 
+-- Additional constraints for quote profit tracking
+ALTER TABLE quote_profit_summary ADD CONSTRAINT unique_quote_profit_summary UNIQUE (quote_id);
+
 -- Data validation constraints
 ALTER TABLE products ADD CONSTRAINT chk_base_rate_positive CHECK (base_rate >= 0);
 ALTER TABLE products ADD CONSTRAINT chk_discount_rate_valid CHECK (discount_rate >= 0 AND discount_rate <= 1);
@@ -210,6 +348,11 @@ ALTER TABLE files ADD CONSTRAINT chk_file_size_positive CHECK (size > 0);
 COMMENT ON TABLE users IS 'System users with role-based access control';
 COMMENT ON TABLE clients IS 'Customer/client information for quotes and invoices';
 COMMENT ON TABLE settings IS 'Application-wide settings including branding and payment details';
+COMMENT ON TABLE services IS 'Agricultural services (formerly categories) with pricing units';
+COMMENT ON TABLE product_costs IS 'Detailed cost breakdown per product for profit analysis';
+COMMENT ON TABLE overhead_costs IS 'General business overhead expenses and calculations';
+COMMENT ON TABLE quote_costs IS 'Detailed cost tracking for individual quote line items';
+COMMENT ON TABLE quote_profit_summary IS 'Aggregated profit analysis per quote';
 COMMENT ON TABLE products IS 'Agricultural products/services with flexible pricing configurations';
 COMMENT ON TABLE product_tiers IS 'Tiered pricing rates based on quantity or application rate thresholds';
 COMMENT ON TABLE quotes IS 'Customer quotes with line items and totals';
@@ -231,6 +374,10 @@ COMMENT ON COLUMN quote_items.calculation IS 'JSON: {rate, subtotal, discount, f
 COMMENT ON COLUMN settings.branding IS 'JSON: {companyName, website, contactInfo: {email, phone, address}}';
 COMMENT ON COLUMN settings.payments IS 'JSON: {bankName, accountName, accountNumber, branchCode}';
 COMMENT ON COLUMN invoices.banking IS 'JSON: banking details copied from settings at invoice creation';
+COMMENT ON COLUMN product_costs.cost_category IS 'Legacy field - cost categorization is now automatic via product->service relationship';
+COMMENT ON COLUMN overhead_costs.category IS 'Legacy field - maintained for backward compatibility during transition';
+COMMENT ON COLUMN overhead_costs.monthly_amount IS 'Legacy field - maintained for backward compatibility during transition';
+COMMENT ON COLUMN overhead_costs.percentage_rate IS 'Legacy field - maintained for backward compatibility during transition';
 
 -- Seed data for production use
 
@@ -255,6 +402,15 @@ INSERT INTO services (name, description, unit) VALUES
 ('Accommodation', 'Accommodation services', 'nights'),
 ('Tank Hire', 'Tank hire services', 'days')
 ON CONFLICT (name) DO NOTHING;
+
+-- Sample overhead costs (consolidated from all migrations)
+INSERT INTO overhead_costs (cost_name, cost_type, cost_value, applies_to, description, category, monthly_amount, percentage_rate) VALUES
+('Office Rent', 'fixed_amount', 3000.00, 'all', 'Monthly office rental and utilities', 'Office Rent', 3000.00, NULL),
+('Insurance', 'fixed_amount', 800.00, 'all', 'Equipment and liability insurance', 'Insurance', 800.00, NULL),
+('General Overhead', 'percentage', 10.0, 'revenue', '10% of revenue for general overhead', 'General Admin', NULL, 10.0),
+('Administrative Costs', 'percentage', 8.0, 'direct_costs', '8% of direct costs for administration', 'General Admin', NULL, 8.0),
+('Marketing & Sales', 'percentage', 3.0, 'revenue', '3% of revenue for marketing costs', 'Fuel Overhead', NULL, 3.0)
+ON CONFLICT DO NOTHING;
 
 -- Migration: Add website field to existing branding data (for databases created before this update)
 -- This ensures compatibility with existing installations
@@ -289,3 +445,23 @@ END $$;
 --     branding->'contactInfo'->>'address' as address
 -- FROM settings 
 -- LIMIT 1;
+
+-- Final verification: Check that all tables have been created successfully
+-- Uncomment and run this query to verify schema deployment
+/*
+SELECT 
+    table_name, 
+    table_type,
+    (SELECT count(*) FROM information_schema.columns WHERE table_name = t.table_name) as column_count
+FROM information_schema.tables t
+WHERE table_schema = 'public' 
+AND table_type = 'BASE TABLE'
+ORDER BY table_name;
+
+-- Expected tables:
+-- users, clients, settings, services, product_costs, overhead_costs,
+-- quote_costs, quote_profit_summary, products, product_tiers, quotes, quote_items, 
+-- invoices, files
+*/
+
+-- Schema deployment complete - AgriHover database ready for use!

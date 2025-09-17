@@ -11,7 +11,11 @@ import {
   Quote,
   Invoice,
   CreateInvoiceData,
-  Settings
+  Settings,
+  ServiceCost,
+  ProductCost,
+  OverheadCost,
+  CostBreakdown
 } from '@/types/api';
 
 const API_URL = 'http://localhost:3001/api';
@@ -249,6 +253,94 @@ export const apiService = {
 
   deleteCategory: async (id: string) => {
     const response = await api.delete(`/categories/${id}`);
+    return response.data;
+  },
+
+  // Cost Management - Service Costs
+  getServiceCosts: async () => {
+    const response = await api.get<ServiceCost[]>('/costs/services');
+    return response.data;
+  },
+
+  createServiceCost: async (costData: Omit<ServiceCost, 'id' | 'created_at' | 'updated_at'>) => {
+    const response = await api.post<ServiceCost>('/costs/services', costData);
+    return response.data;
+  },
+
+  updateServiceCost: async (id: string, costData: Partial<Omit<ServiceCost, 'id' | 'created_at' | 'updated_at'>>) => {
+    const response = await api.put<ServiceCost>(`/costs/services/${id}`, costData);
+    return response.data;
+  },
+
+  deleteServiceCost: async (id: string) => {
+    const response = await api.delete(`/costs/services/${id}`);
+    return response.data;
+  },
+
+  // Cost Management - Product Costs
+  getProductCosts: async () => {
+    const response = await api.get<ProductCost[]>('/costs/products');
+    return response.data;
+  },
+
+  createProductCost: async (costData: Omit<ProductCost, 'id' | 'created_at' | 'updated_at'>) => {
+    const response = await api.post<ProductCost>('/costs/products', costData);
+    return response.data;
+  },
+
+  updateProductCost: async (id: string, costData: Partial<Omit<ProductCost, 'id' | 'created_at' | 'updated_at'>>) => {
+    const response = await api.put<ProductCost>(`/costs/products/${id}`, costData);
+    return response.data;
+  },
+
+  deleteProductCost: async (id: string) => {
+    const response = await api.delete(`/costs/products/${id}`);
+    return response.data;
+  },
+
+  // Cost Management - Overhead Costs
+  getOverheadCosts: async () => {
+    const response = await api.get<OverheadCost[]>('/costs/overheads');
+    return response.data;
+  },
+
+  createOverheadCost: async (costData: Omit<OverheadCost, 'id' | 'created_at' | 'updated_at'>) => {
+    const response = await api.post<OverheadCost>('/costs/overheads', costData);
+    return response.data;
+  },
+
+  updateOverheadCost: async (id: string, costData: Partial<Omit<OverheadCost, 'id' | 'created_at' | 'updated_at'>>) => {
+    const response = await api.put<OverheadCost>(`/costs/overheads/${id}`, costData);
+    return response.data;
+  },
+
+  deleteOverheadCost: async (id: string) => {
+    const response = await api.delete(`/costs/overheads/${id}`);
+    return response.data;
+  },
+
+  // Profit Analysis
+  calculateProfitAnalysis: async (quoteData: {
+    items: Array<{
+      product_id: string;
+      quantity: number;
+      unit_price: number;
+    }>;
+  }) => {
+    const response = await api.post<CostBreakdown>('/costs/calculate-profit', quoteData);
+    return response.data;
+  },
+
+  // Cost calculation for invoices
+  calculateCosts: async (costData: {
+    invoiceId?: string;
+    items: Array<{
+      productId: string;
+      quantity: number;
+    }>;
+    revenue: number;
+  }) => {
+    const response = await api.post<CostBreakdown>('/costs/calculate', costData);
     return response.data;
   },
 };

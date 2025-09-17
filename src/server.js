@@ -66,13 +66,14 @@ pool.connect()
   });
 
 // Import routers
-const { default: createClientsRouter } = await import('./routes/clients.js');
-const { default: createProductsRouter } = await import('./routes/products.js');
-const { default: createQuotesRouter } = await import('./routes/quotes.js');
-const { default: createInvoicesRouter } = await import('./routes/invoices.js');
-const { default: createAuthRouter } = await import('./routes/auth.js');
-const { default: createSettingsRouter } = await import('./routes/settings.js');
-const { default: createServicesRouter } = await import('./routes/services.js');
+import createClientsRouter from './routes/clients.js';
+import createProductsRouter from './routes/products.js';
+import createQuotesRouter from './routes/quotes.js';
+import createInvoicesRouter from './routes/invoices.js';
+import createAuthRouter from './routes/auth.js';
+import createSettingsRouter from './routes/settings.js';
+import createServicesRouter from './routes/services.js';
+import { createCostsRouter } from './routes/costs.js';
 
 // Initialize routers
 const clientsRouter = createClientsRouter(pool);
@@ -82,6 +83,7 @@ const invoicesRouter = createInvoicesRouter(pool);
 const authRouter = createAuthRouter(pool);
 const settingsRouter = createSettingsRouter(pool);
 const servicesRouter = createServicesRouter(pool);
+const costsRouter = createCostsRouter(pool);
 
 import { authenticateToken } from './middleware/auth.js';
 
@@ -95,6 +97,7 @@ app.use('/api/quotes', authenticateToken, quotesRouter);
 app.use('/api/products', authenticateToken, productsRouter);
 app.use('/api/clients', authenticateToken, clientsRouter);
 app.use('/api/services', authenticateToken, servicesRouter);
+app.use('/api/costs', authenticateToken, costsRouter);
 app.use('/api/categories', authenticateToken, servicesRouter); // Keep backward compatibility
 
 app.get('/', (req, res) => {

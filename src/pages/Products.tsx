@@ -92,6 +92,8 @@ export default function Products({ onNavigate }: ProductsProps) {
 
   const filteredProducts = selectedService === 'all' 
     ? products 
+    : selectedService === 'uncategorized'
+    ? products.filter(p => !p.category) // Show products without categories
     : products.filter(p => {
         // Handle both old string-based services and new service IDs
         if (typeof p.category === 'string') {
@@ -113,6 +115,12 @@ export default function Products({ onNavigate }: ProductsProps) {
     });
     return acc;
   }, {} as Record<string, Product[]>);
+
+  // Add uncategorized products
+  const uncategorizedProducts = products.filter(p => !p.category);
+  if (uncategorizedProducts.length > 0) {
+    productsByCategory['Uncategorized'] = uncategorizedProducts;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -152,6 +160,11 @@ export default function Products({ onNavigate }: ProductsProps) {
                 {category.name} ({productsByCategory[category.name]?.length || 0})
               </TabsTrigger>
             ))}
+            {uncategorizedProducts.length > 0 && (
+              <TabsTrigger value="uncategorized">
+                Uncategorized ({uncategorizedProducts.length})
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value={selectedService}>
@@ -160,6 +173,8 @@ export default function Products({ onNavigate }: ProductsProps) {
                 <CardTitle>
                   {selectedService === 'all' 
                     ? 'All Products' 
+                    : selectedService === 'uncategorized'
+                    ? 'Uncategorized Products'
                     : categories.find(c => c.id === selectedService)?.name || 'Products'
                   }
                 </CardTitle>
@@ -287,13 +302,21 @@ interface ProductFormDialogProps {
   categories: Category[];
   isOpen: boolean;
   onClose: () => void;
-  onSave: (product: Product) => void;
+  onSave: (product: Product) => Promise<void>;
 }
 
 function ProductFormDialog({ product, categories, isOpen, onClose, onSave }: ProductFormDialogProps) {
   const [formData, setFormData] = useState<Partial<Product>>({});
   const [tiers, setTiers] = useState<ProductTier[]>([]);
   const [localCategories, setLocalCategories] = useState<Category[]>([]);
+  
+  // Multiple costs support
+  const [costs, setCosts] = useState<Array<{
+    id?: string;
+    cost_name: string;
+    cost_per_unit: string;
+    description: string;
+  }>>([]);
 
   useEffect(() => {
     setLocalCategories(categories);
@@ -303,25 +326,54 @@ function ProductFormDialog({ product, categories, isOpen, onClose, onSave }: Pro
     if (product) {
       setFormData(product);
       setTiers(product.tiers || []);
+      
+      // Load existing cost data for this product
+      const loadCostData = async () => {
+        try {
+          const productCosts = await apiService.getProductCosts();
+          const existingCosts = productCosts.filter(cost => cost.product_id === product.id);
+          if (existingCosts.length > 0) {
+            setCosts(existingCosts.map(cost => ({
+              id: cost.id,
+              cost_name: cost.cost_name,
+              cost_per_unit: cost.cost_per_unit.toString(),
+              description: cost.description || ''
+            })));
+          } else {
+            // Start with one empty cost for existing products
+            setCosts([{ cost_name: '', cost_per_unit: '', description: '' }]);
+          }
+        } catch (error) {
+          console.error('Failed to load cost data:', error);
+          setCosts([{ cost_name: '', cost_per_unit: '', description: '' }]);
+        }
+      };
+      
+      if (product.id) {
+        loadCostData();
+      }
     } else {
       const defaultData = {
         name: '',
         description: '',
-        category: 'spraying' as ProductCategory,
+        category: undefined, // No default category - make it truly optional
         pricingType: 'tiered' as PricingType,
         baseRate: 200,
         sku: '',
         discountThreshold: 100,
         discountRate: 0.15,
-        unit: 'ha' // Default unit
+        unit: 'unit' // Default generic unit
       };
       setFormData(defaultData);
       setTiers([]); // Start with empty tiers for new products
+      
+      // Initialize with one empty cost for new products
+      setCosts([{ cost_name: '', cost_per_unit: '', description: '' }]);
     }
   }, [product, isOpen]);
 
-  const handleSave = () => {
-    if (!formData.name || !formData.category || !formData.pricingType) {
+  const handleSave = async () => {
+    if (!formData.name || !formData.pricingType) {
       alert('Please fill in all required fields');
       return;
     }
@@ -330,14 +382,14 @@ function ProductFormDialog({ product, categories, isOpen, onClose, onSave }: Pro
       id: product?.id || '', // Don't generate ID for new products, let backend handle it
       name: formData.name!,
       description: formData.description || '',
-      category: formData.category!,
+      category: formData.category || undefined, // Allow undefined/no category
       pricingType: formData.pricingType!,
       baseRate: formData.baseRate || 0,
       discountThreshold: formData.discountThreshold,
       discountRate: formData.discountRate,
       sku: '', // Let backend generate the SKU
       unit: formData.unit || (() => {
-        // Find the selected category and use its unit
+        // Find the selected category and use its unit, or default to 'unit'
         const selectedCategory = localCategories.find(c => c.id === formData.category);
         return selectedCategory?.unit || 'unit';
       })(),
@@ -350,10 +402,91 @@ function ProductFormDialog({ product, categories, isOpen, onClose, onSave }: Pro
     };
 
     console.log('🎯 Product data prepared for saving:', productToSave);
-    console.log('🎯 Original product ID:', product?.id);
-    console.log('🎯 Product to save ID:', productToSave.id);
 
-    onSave(productToSave);
+    try {
+      // Save the product first and get the saved product with ID
+      await onSave(productToSave);
+      
+      // Save multiple costs if provided and we have the product info
+      const validCosts = costs.filter(cost => cost.cost_name && cost.cost_per_unit);
+      if (validCosts.length > 0) {
+        try {
+          // Get the latest products to find our saved product
+          const savedProducts = await productStorageService.getProducts();
+          const savedProduct = product?.id 
+            ? savedProducts.find(p => p.id === product.id)  // Editing existing product
+            : savedProducts.find(p => 
+                p.name === productToSave.name && 
+                p.category === productToSave.category
+              ); // Find newly created product
+          
+          if (savedProduct) {
+            // Get existing costs to determine what to update vs create
+            const existingCosts = await apiService.getProductCosts();
+            const productExistingCosts = existingCosts.filter(cost => cost.product_id === savedProduct.id);
+            
+            // Save each valid cost
+            for (const cost of validCosts) {
+              const costToSave = {
+                product_id: savedProduct.id,
+                cost_name: cost.cost_name,
+                cost_per_unit: parseFloat(cost.cost_per_unit),
+                unit: savedProduct.unit,
+                description: cost.description,
+                is_active: true
+              };
+              
+              if (cost.id) {
+                // Update existing cost
+                await apiService.updateProductCost(cost.id, costToSave);
+                console.log('✅ Cost data updated successfully');
+              } else {
+                // Create new cost
+                await apiService.createProductCost(costToSave);
+                console.log('✅ Cost data created successfully');
+              }
+            }
+            
+            // Delete costs that were removed (existed before but not in current costs array)
+            const costIdsToKeep = validCosts.filter(c => c.id).map(c => c.id);
+            const costsToDelete = productExistingCosts.filter(existing => 
+              !costIdsToKeep.includes(existing.id)
+            );
+            
+            for (const costToDelete of costsToDelete) {
+              try {
+                await apiService.deleteProductCost(costToDelete.id);
+                console.log('✅ Removed unused cost');
+              } catch (error) {
+                console.error('Failed to delete cost:', error);
+              }
+            }
+          } else {
+            console.warn('Could not find saved product to attach cost data');
+          }
+        } catch (error) {
+          console.error('Failed to save cost data:', error);
+          alert('Product saved successfully, but failed to save cost data. You can add costs later in Cost Management.');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to save product:', error);
+      throw error; // Re-throw to let the parent handle it
+    }
+  };
+
+  const handleAddCost = () => {
+    setCosts([...costs, { cost_name: '', cost_per_unit: '', description: '' }]);
+  };
+
+  const handleUpdateCost = (index: number, field: string, value: string) => {
+    const updatedCosts = [...costs];
+    updatedCosts[index] = { ...updatedCosts[index], [field]: value };
+    setCosts(updatedCosts);
+  };
+
+  const handleRemoveCost = (index: number) => {
+    setCosts(costs.filter((_, i) => i !== index));
   };
 
   const handleAddTier = () => {
@@ -418,42 +551,53 @@ function ProductFormDialog({ product, categories, isOpen, onClose, onSave }: Pro
           {/* Service and Pricing Type */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="category">Service *</Label>
+              <Label htmlFor="category">Service</Label>
               <Select
-                value={formData.category}
+                value={formData.category || "none"}
                 onValueChange={(value: string) => {
-                  const selectedCategory = localCategories.find(c => c.id === value);
-                  const unit = selectedCategory?.unit || 'unit';
-                  
-                  setFormData({
-                    ...formData,
-                    category: value,
-                    pricingType: selectedCategory?.name.toLowerCase().includes('travel') ? 'per_km' : 'tiered',
-                    baseRate: selectedCategory?.name.toLowerCase().includes('spray') ? 200 : 
-                              selectedCategory?.name.toLowerCase().includes('granular') ? 250 : 15,
-                    unit
-                  });
-                  
-                  // Set default tiers for spraying/granular categories
-                  if (tiers.length === 0 && 
-                      (selectedCategory?.name.toLowerCase().includes('spray') || 
-                       selectedCategory?.name.toLowerCase().includes('granular'))) {
-                    setTiers([
-                      { productId: '', threshold: 40, rate: 200 },
-                      { productId: '', threshold: 80, rate: 300 },
-                      { productId: '', threshold: 160, rate: 400 }
-                    ]);
-                  } else if (selectedCategory?.name.toLowerCase().includes('travel') || 
-                           selectedCategory?.name.toLowerCase().includes('imaging') || 
-                           selectedCategory?.name.toLowerCase().includes('accommodation')) {
-                    setTiers([]);
+                  if (value === "none") {
+                    // No category selected
+                    setFormData({
+                      ...formData,
+                      category: undefined,
+                      unit: 'unit' // Default unit when no category
+                    });
+                    setTiers([]); // Clear any auto-generated tiers
+                  } else {
+                    const selectedCategory = localCategories.find(c => c.id === value);
+                    const unit = selectedCategory?.unit || 'unit';
+                    
+                    setFormData({
+                      ...formData,
+                      category: value,
+                      pricingType: selectedCategory?.name.toLowerCase().includes('travel') ? 'per_km' : 'tiered',
+                      baseRate: selectedCategory?.name.toLowerCase().includes('spray') ? 200 : 
+                                selectedCategory?.name.toLowerCase().includes('granular') ? 250 : 15,
+                      unit
+                    });
+                    
+                    // Set default tiers for spraying/granular categories
+                    if (tiers.length === 0 && 
+                        (selectedCategory?.name.toLowerCase().includes('spray') || 
+                         selectedCategory?.name.toLowerCase().includes('granular'))) {
+                      setTiers([
+                        { productId: '', threshold: 40, rate: 200 },
+                        { productId: '', threshold: 80, rate: 300 },
+                        { productId: '', threshold: 160, rate: 400 }
+                      ]);
+                    } else if (selectedCategory?.name.toLowerCase().includes('travel') || 
+                             selectedCategory?.name.toLowerCase().includes('imaging') || 
+                             selectedCategory?.name.toLowerCase().includes('accommodation')) {
+                      setTiers([]);
+                    }
                   }
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select service" />
+                  <SelectValue placeholder="Select service (optional)" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">None (No Service Category)</SelectItem>
                   {localCategories.map(category => (
                     <SelectItem key={category.id} value={category.id}>
                       {category.name}
@@ -591,6 +735,79 @@ function ProductFormDialog({ product, categories, isOpen, onClose, onSave }: Pro
                   <p className="text-xs text-gray-500">Percentage discount for excess quantity</p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Multiple Costs Section */}
+          <Card className="border-blue-200 bg-blue-50">
+            <CardHeader>
+              <CardTitle className="text-base text-blue-800">Product Costs</CardTitle>
+              <CardDescription className="text-blue-700">
+                Define all costs associated with delivering this product/service
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {costs.map((cost, index) => (
+                <div key={index} className="border border-blue-200 rounded-lg p-4 bg-white">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="text-sm font-medium text-blue-900">Cost {index + 1}</h4>
+                    {costs.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRemoveCost(index)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="space-y-2">
+                      <Label htmlFor={`cost-name-${index}`}>Cost Name</Label>
+                      <Input
+                        id={`cost-name-${index}`}
+                        value={cost.cost_name}
+                        onChange={(e) => handleUpdateCost(index, 'cost_name', e.target.value)}
+                        placeholder="e.g., Diesel fuel, Equipment rental"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`cost-per-unit-${index}`}>Cost per Unit (R)</Label>
+                      <Input
+                        id={`cost-per-unit-${index}`}
+                        type="number"
+                        step="0.01"
+                        value={cost.cost_per_unit}
+                        onChange={(e) => handleUpdateCost(index, 'cost_per_unit', e.target.value)}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor={`cost-description-${index}`}>Cost Description (Optional)</Label>
+                    <Input
+                      id={`cost-description-${index}`}
+                      value={cost.description}
+                      onChange={(e) => handleUpdateCost(index, 'description', e.target.value)}
+                      placeholder="Additional details about this cost"
+                    />
+                  </div>
+                </div>
+              ))}
+              
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={handleAddCost}
+                className="w-full border-blue-300 text-blue-700 hover:bg-blue-100"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Another Cost
+              </Button>
             </CardContent>
           </Card>
 
